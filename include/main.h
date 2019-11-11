@@ -1,0 +1,24 @@
+/*
+ * LMIC Probe - STM32F1x software to monitor LMIC LoRa timings
+ * 
+ * Copyright (c) 2019 Manuel Bleichenbacher
+ * Licensed under MIT License
+ * https://opensource.org/licenses/MIT
+ * 
+ * Main functions
+ */
+
+#ifndef _MAIN_H_
+#define _MAIN_H_
+
+typedef enum
+{
+    eventSpiTrx,
+    eventDio0,
+    eventDio1
+} EventType;
+
+
+void QueueEvent(EventType eventType, int spiPos);
+
+#endif

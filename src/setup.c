@@ -10,17 +10,15 @@
 
 #include "setup.h"
 #include "uart.h"
-
+#include "main.h"
 
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
-
 
 void SystemClock_Config();
 static void GPIO_Init();
 static void DMA_Init();
 static void SPI1_Init();
-
 
 void setup()
 {
@@ -45,13 +43,15 @@ void SystemClock_Config()
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
     RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
+    RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
     HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
     // Initializes the CPU, AHB and APB busses clocks
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -154,7 +154,6 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
     }
 }
 
-
 static void DMA_Init()
 {
     // DMA controller clock enable
@@ -171,11 +170,6 @@ void Error_Handler()
     while (1)
     {
     }
-}
-
-void SysTick_Handler()
-{
-    HAL_IncTick();
 }
 
 void NMI_Handler()
@@ -224,13 +218,13 @@ void PendSV_Handler()
 
 void EXTI0_IRQHandler(void)
 {
-    DioTriggered(0);
+    QueueEvent(eventDio0, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
 }
 
 void EXTI1_IRQHandler(void)
 {
-    DioTriggered(1);
+    QueueEvent(eventDio1, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 }
 

@@ -8,16 +8,14 @@
  * Main code (SPI data decoding, output, most initialization)
  */
 #include <string.h>
+#include <stdio.h>
 #include "setup.h"
 #include "uart.h"
+#include "timing.h"
+#include "main.h"
 
 
-typedef enum {
-    eventSpiTrx,
-    eventDio0,
-    eventDio1
-} EventType;
-
+#define TIMESTAMP_PATTERN "%10lu: "
 
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
@@ -31,19 +29,23 @@ static uint8_t spiDataBuf[128];
 //  *  head + 1 == tail => full (mod queue_len)
 #define EVENT_QUEUE_LEN 16
 static volatile EventType eventTypes[EVENT_QUEUE_LEN];
+static volatile uint32_t eventTime[EVENT_QUEUE_LEN];
 static volatile int spiTrxDataEnd[EVENT_QUEUE_LEN];
 static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
 
+static char timestampBuf[20];
+
+
 void Error_Handler();
-static void TestForRxTxStart(uint8_t* start, uint8_t* end);
+static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end);
 
 int main()
 {
     setup();
 
     uartPrint("Start\r\n");
-    
+
     HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
 
     while (1)
@@ -52,20 +54,23 @@ int main()
         {
             int tail = eventQueueTail;
             EventType eventType = eventTypes[tail];
-            uint8_t* start = spiDataBuf + spiTrxDataEnd[tail];
+            uint8_t *start = spiDataBuf + spiTrxDataEnd[tail];
+            uint32_t time = eventTime[tail];
             tail++;
             if (tail >= EVENT_QUEUE_LEN)
                 tail = 0;
-            
+
             switch (eventType)
             {
-                case eventSpiTrx:
-                    TestForRxTxStart(start, spiDataBuf + spiTrxDataEnd[tail]);
-                    break;
-                case eventDio0:
-                case eventDio1:
-                    uartPrint(eventType == eventDio0 ? "Done\r\n" : "Timeout\r\n");
-                    break;
+            case eventSpiTrx:
+                TestForRxTxStart(time, start, spiDataBuf + spiTrxDataEnd[tail]);
+                break;
+            case eventDio0:
+            case eventDio1:
+                snprintf(timestampBuf, sizeof(timestampBuf), TIMESTAMP_PATTERN, time);
+                uartPrint(timestampBuf);
+                uartPrint(eventType == eventDio0 ? "Done\r\n" : "Timeout\r\n");
+                break;
             }
 
             eventQueueTail = tail;
@@ -73,39 +78,53 @@ int main()
     }
 }
 
-static void TestForRxTxStart(uint8_t* start, uint8_t* end)
+static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end)
 {
-    uint8_t* p = start;
-    _Bool isRxStart = *p == 0x81;
-    _Bool isTxStart = isRxStart;
-    p++;
-    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
-        p = spiDataBuf;
-    isRxStart = isRxStart && (*p & 0x07) == 0x06;
-    isTxStart = isTxStart && (*p & 0x07) == 0x03;
-    p++;
-    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
-        p = spiDataBuf;
-    isRxStart = isRxStart && p == end;
-    isTxStart = isTxStart && p == end;
+    uint8_t *p = start;
 
-    if (isRxStart)
-        uartPrint("RX start\r\n");
-    if (isTxStart)
-        uartPrint("TX start\r\n");
+    // check for write to OPMODE register
+    if (*p != 0x81)
+        return;
+
+    p++;
+    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
+        p = spiDataBuf;
+    
+    // Check for mode RXSINGLE and TX, respectively
+    _Bool isRxStart = (*p & 0x07) == 0x06;
+    _Bool isTxStart = (*p & 0x07) == 0x03;
+    if (!isRxStart && !isTxStart)
+        return;
+
+    p++;
+    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
+        p = spiDataBuf;
+    
+    // Check for a complete SPI transaction
+    if (p != end)
+        return;
+
+    snprintf(timestampBuf, sizeof(timestampBuf), TIMESTAMP_PATTERN, time);
+    uartPrint(timestampBuf);
+    uartPrint(isRxStart ? "RX start\r\n" : "TX start\r\n");
 }
 
-void DioTriggered(int dio)
+
+void QueueEvent(EventType eventType, int spiPos)
 {
+    uint32_t us = GetMicros();
     int head = eventQueueHead;
-    int spiPos = spiTrxDataEnd[head];
+    if (spiPos == -1)
+        spiPos = spiTrxDataEnd[head];
+
     head++;
     if (head >= EVENT_QUEUE_LEN)
         head = 0;
     if (head == eventQueueTail)
         return;
 
-    eventTypes[head] = dio == 0 ? eventDio0 : eventDio1;
+    eventTypes[head] = eventType;
+    eventTime[head] = us;
     spiTrxDataEnd[head] = spiPos;
     eventQueueHead = head;
 }
@@ -116,13 +135,5 @@ void SpiTrxCompleted()
     if (pos == SPI_DATA_BUF_LEN)
         pos = 0;
 
-    int head = eventQueueHead + 1;
-    if (head >= EVENT_QUEUE_LEN)
-        head = 0;
-    if (head != eventQueueTail)
-    {
-        eventTypes[head] = eventSpiTrx;
-        spiTrxDataEnd[head] = pos;
-        eventQueueHead = head;
-    }
+    QueueEvent(eventSpiTrx, pos);
 }
