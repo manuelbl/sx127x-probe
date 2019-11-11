@@ -7,6 +7,7 @@
  * 
  * Asynchronous UART/serial output
  */
+
 #ifndef _UART_H_
 #define _UART_H_
 
