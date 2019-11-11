@@ -13,9 +13,9 @@
 
 typedef enum
 {
-    eventSpiTrx,
-    eventDio0,
-    eventDio1
+    EventTypeSpiTrx,
+    EventTypeDone,
+    EventTypeTimeout
 } EventType;
 
 

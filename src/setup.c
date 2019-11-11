@@ -218,13 +218,13 @@ void PendSV_Handler()
 
 void EXTI0_IRQHandler(void)
 {
-    QueueEvent(eventDio0, -1);
+    QueueEvent(EventTypeDone, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
 }
 
 void EXTI1_IRQHandler(void)
 {
-    QueueEvent(eventDio1, -1);
+    QueueEvent(EventTypeTimeout, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 }
 

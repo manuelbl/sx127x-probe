@@ -62,14 +62,14 @@ int main()
 
             switch (eventType)
             {
-            case eventSpiTrx:
+            case EventTypeSpiTrx:
                 TestForRxTxStart(time, start, spiDataBuf + spiTrxDataEnd[tail]);
                 break;
-            case eventDio0:
-            case eventDio1:
+            case EventTypeDone:
+            case EventTypeTimeout:
                 snprintf(timestampBuf, sizeof(timestampBuf), TIMESTAMP_PATTERN, time);
                 uartPrint(timestampBuf);
-                uartPrint(eventType == eventDio0 ? "Done\r\n" : "Timeout\r\n");
+                uartPrint(eventType == EventTypeDone ? "Done\r\n" : "Timeout\r\n");
                 break;
             }
 
@@ -135,5 +135,5 @@ void SpiTrxCompleted()
     if (pos == SPI_DATA_BUF_LEN)
         pos = 0;
 
-    QueueEvent(eventSpiTrx, pos);
+    QueueEvent(EventTypeSpiTrx, pos);
 }
