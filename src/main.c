@@ -112,7 +112,7 @@ static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end)
 
 void QueueEvent(EventType eventType, int spiPos)
 {
-    uint32_t us = GetMicros();
+    uint32_t us = GetMicrosFromISR();
     int head = eventQueueHead;
     if (spiPos == -1)
         spiPos = spiTrxDataEnd[head];

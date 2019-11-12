@@ -11,10 +11,11 @@
 #include "timing.h"
 
 
-volatile uint32_t SystickUptimeMillis;
+volatile uint32_t UptimeMillis;
 
 
 void SysTick_Handler()
 {
-    SystickUptimeMillis++;
+    UptimeMillis++;
+    HAL_IncTick();
 }
