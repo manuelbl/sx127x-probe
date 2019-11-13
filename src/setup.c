@@ -24,8 +24,6 @@ void setup()
 {
     HAL_Init();
 
-    __HAL_AFIO_REMAP_SWJ_NOJTAG();
-
     SystemClock_Config();
 
     GPIO_Init();
@@ -34,28 +32,44 @@ void setup()
     uartInit();
 }
 
+// Initializes the Global MSP.
+void HAL_MspInit(void)
+{
+  __HAL_RCC_AFIO_CLK_ENABLE();
+  __HAL_RCC_PWR_CLK_ENABLE();
+
+  // System interrupt init
+
+  // NOJTAG: JTAG-DP Disabled and SW-DP Enabled 
+  __HAL_AFIO_REMAP_SWJ_NOJTAG();
+}
+
 void SystemClock_Config()
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
     // Initializes the CPU, AHB and APB busses clocks
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+    RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+    RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
-    RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+    RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
     HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
     // Initializes the CPU, AHB and APB busses clocks
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                                |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-    HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0);
+    HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+
+    HAL_RCC_EnableCSS();
 }
 
 static void GPIO_Init()
@@ -65,6 +79,7 @@ static void GPIO_Init()
     // GPIO Ports Clock Enable
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOD_CLK_ENABLE();
 
     // Configure DIO0 & DIO1 pin
     GPIO_InitStruct.Pin = DIO0_PIN | DIO1_PIN;
@@ -183,6 +198,7 @@ void Error_Handler()
 
 void NMI_Handler()
 {
+    HAL_RCC_NMI_IRQHandler();
 }
 
 void HardFault_Handler()
