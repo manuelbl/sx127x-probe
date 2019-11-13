@@ -21,7 +21,6 @@ static void GPIO_Init();
 static void DMA_Init();
 static void SPI1_Init();
 static void TIM2_Init();
-static void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 void setup()
 {
@@ -37,7 +36,7 @@ void setup()
 }
 
 // Initializes the Global MSP.
-void HAL_MspInit(void)
+extern "C" void HAL_MspInit(void)
 {
     __HAL_RCC_AFIO_CLK_ENABLE();
     __HAL_RCC_PWR_CLK_ENABLE();
@@ -125,7 +124,7 @@ static void SPI1_Init()
     HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 }
 
-void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
+extern "C" void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     if (hspi->Instance == SPI1)
@@ -163,7 +162,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
     }
 }
 
-void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
+extern "C" void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI1)
     {
@@ -181,7 +180,7 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
     }
 }
 
-static void DMA_Init()
+void DMA_Init()
 {
     // DMA controller clock enable
     __HAL_RCC_DMA1_CLK_ENABLE();
@@ -192,7 +191,7 @@ static void DMA_Init()
     HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 }
 
-static void TIM2_Init(void)
+void TIM2_Init(void)
 {
     TIM_ClockConfigTypeDef sClockSourceConfig = {0};
     TIM_MasterConfigTypeDef sMasterConfig = {0};
@@ -221,12 +220,19 @@ static void TIM2_Init(void)
     sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
     HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2);
 
-    HAL_TIM_MspPostInit(&htim2);
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    // TIM2 GPIO Configuration
+    // PA1     ------> TIM2_CH2
+    GPIO_InitStruct.Pin = GPIO_PIN_1;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 }
 
-void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim_base)
+extern "C" void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim_base)
 {
     if (htim_base->Instance == TIM2)
     {
@@ -235,21 +241,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim_base)
     }
 }
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim)
-{
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    if (htim->Instance == TIM2)
-    {
-        // TIM2 GPIO Configuration
-        // PA1     ------> TIM2_CH2
-        GPIO_InitStruct.Pin = GPIO_PIN_1;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    }
-}
-
-void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef *htim_base)
+extern "C" void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef *htim_base)
 {
     if (htim_base->Instance == TIM2)
     {
@@ -265,70 +257,70 @@ void Error_Handler()
     }
 }
 
-void NMI_Handler()
+extern "C" void NMI_Handler()
 {
     HAL_RCC_NMI_IRQHandler();
 }
 
-void HardFault_Handler()
+extern "C" void HardFault_Handler()
 {
     while (1)
     {
     }
 }
 
-void MemManage_Handler()
+extern "C" void MemManage_Handler()
 {
     while (1)
     {
     }
 }
 
-void BusFault_Handler()
+extern "C" void BusFault_Handler()
 {
     while (1)
     {
     }
 }
 
-void UsageFault_Handler()
+extern "C" void UsageFault_Handler()
 {
     while (1)
     {
     }
 }
 
-void SVC_Handler()
+extern "C" void SVC_Handler()
 {
 }
 
-void DebugMon_Handler()
+extern "C" void DebugMon_Handler()
 {
 }
 
-void PendSV_Handler()
+extern "C" void PendSV_Handler()
 {
 }
 
-void EXTI0_IRQHandler(void)
+extern "C" void EXTI0_IRQHandler(void)
 {
     QueueEvent(EventTypeDone, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
 }
 
-void EXTI1_IRQHandler(void)
+extern "C" void EXTI1_IRQHandler(void)
 {
     QueueEvent(EventTypeTimeout, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 }
 
-void EXTI4_IRQHandler(void)
+extern "C" void EXTI4_IRQHandler(void)
 {
     SpiTrxCompleted();
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4);
 }
 
-void DMA1_Channel2_IRQHandler(void)
+extern "C" void DMA1_Channel2_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(&hdma_spi1_rx);
 }

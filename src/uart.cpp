@@ -83,7 +83,7 @@ void uartWrite(const uint8_t* data, size_t len)
     
     int bufHead = txBufHead;
     int bufTail = txBufTail;
-    int maxChunkSize = bufHead > bufTail
+    size_t maxChunkSize = bufHead > bufTail
         ? TX_BUF_LEN - bufHead
         : bufTail - bufHead - 1;
     if (maxChunkSize <= 0)
@@ -93,7 +93,7 @@ void uartWrite(const uint8_t* data, size_t len)
     // - If the free space wraps around, two chunks are used.
     // - If the data to transmit is bigger than the free space,
     //   the remainder is discarded.
-    int size = len;
+    size_t size = len;
     if (size > maxChunkSize)
         size = maxChunkSize;
     
@@ -115,7 +115,7 @@ void uartWrite(const uint8_t* data, size_t len)
         uartWrite(data + size, len - size);
 }
 
-static void startUartTransmit()
+void startUartTransmit()
 {
     __disable_irq();
 
@@ -140,7 +140,7 @@ static void startUartTransmit()
     __enable_irq();
 }
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart)
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart)
 {
     __disable_irq();
 
@@ -179,7 +179,7 @@ void uartInit()
     txChunkBreak[txQueueHead] = txBufHead;
 }
 
-void HAL_UART_MspInit(UART_HandleTypeDef *huart)
+extern "C" void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     if (huart->Instance == USART1)
@@ -221,7 +221,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
     }
 }
 
-void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
+extern "C" void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1)
     {
@@ -240,12 +240,12 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
     }
 }
 
-void DMA1_Channel4_IRQHandler(void)
+extern "C" void DMA1_Channel4_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(&hdma_usart1_tx);
 }
 
-void USART1_IRQHandler(void)
+extern "C" void USART1_IRQHandler(void)
 {
     HAL_UART_IRQHandler(&huart1);
 }

@@ -15,9 +15,19 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 void uartInit();
 void uartWrite(const uint8_t* data, size_t len);
 void uartPrint(const char* str);
 void uartPrintHex(const uint8_t* data, size_t len, _Bool crlf);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -14,6 +14,11 @@
 #include <stdint.h>
 #include <stm32f1xx_hal.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 extern volatile uint32_t UptimeMillis;
 
 static inline uint32_t GetMicros()
@@ -43,5 +48,10 @@ static inline uint32_t GetMicrosFromISR()
 
     return ms * 1000 - st / ((SysTick->LOAD + 1) / 1000);
 }
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

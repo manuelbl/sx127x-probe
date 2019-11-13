@@ -11,6 +11,11 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 typedef enum
 {
     EventTypeSpiTrx,
@@ -20,5 +25,10 @@ typedef enum
 
 
 void QueueEvent(EventType eventType, int spiPos);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
