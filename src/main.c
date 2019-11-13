@@ -9,6 +9,7 @@
  */
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 #include "setup.h"
 #include "uart.h"
 #include "timing.h"
@@ -16,6 +17,9 @@
 
 
 #define TIMESTAMP_PATTERN "%10lu: "
+
+#define CORR 0.99996
+
 
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
@@ -34,11 +38,10 @@ static volatile int spiTrxDataEnd[EVENT_QUEUE_LEN];
 static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
 
-static char timestampBuf[20];
-
-
 void Error_Handler();
 static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end);
+static void PrintTimestamp(uint32_t timestamp);
+
 
 int main()
 {
@@ -67,8 +70,7 @@ int main()
                 break;
             case EventTypeDone:
             case EventTypeTimeout:
-                snprintf(timestampBuf, sizeof(timestampBuf), TIMESTAMP_PATTERN, time);
-                uartPrint(timestampBuf);
+                PrintTimestamp(time);
                 uartPrint(eventType == EventTypeDone ? "Done\r\n" : "Timeout\r\n");
                 break;
             }
@@ -104,8 +106,7 @@ static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end)
     if (p != end)
         return;
 
-    snprintf(timestampBuf, sizeof(timestampBuf), TIMESTAMP_PATTERN, time);
-    uartPrint(timestampBuf);
+    PrintTimestamp(time);
     uartPrint(isRxStart ? "RX start\r\n" : "TX start\r\n");
 }
 
@@ -136,4 +137,12 @@ void SpiTrxCompleted()
         pos = 0;
 
     QueueEvent(EventTypeSpiTrx, pos);
+}
+
+void PrintTimestamp(uint32_t timestamp)
+{
+    timestamp = (uint32_t) lround(timestamp * CORR);
+    char buf[sizeof(TIMESTAMP_PATTERN) + 7];
+    snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
+    uartPrint(buf);
 }
