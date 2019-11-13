@@ -14,11 +14,14 @@
 
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
+TIM_HandleTypeDef htim2;
 
 void SystemClock_Config();
 static void GPIO_Init();
 static void DMA_Init();
 static void SPI1_Init();
+static void TIM2_Init();
+static void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 void setup()
 {
@@ -29,19 +32,20 @@ void setup()
     GPIO_Init();
     DMA_Init();
     SPI1_Init();
+    TIM2_Init();
     uartInit();
 }
 
 // Initializes the Global MSP.
 void HAL_MspInit(void)
 {
-  __HAL_RCC_AFIO_CLK_ENABLE();
-  __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_RCC_AFIO_CLK_ENABLE();
+    __HAL_RCC_PWR_CLK_ENABLE();
 
-  // System interrupt init
+    // System interrupt init
 
-  // NOJTAG: JTAG-DP Disabled and SW-DP Enabled 
-  __HAL_AFIO_REMAP_SWJ_NOJTAG();
+    // NOJTAG: JTAG-DP Disabled and SW-DP Enabled
+    __HAL_AFIO_REMAP_SWJ_NOJTAG();
 }
 
 void SystemClock_Config()
@@ -60,8 +64,7 @@ void SystemClock_Config()
     HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
     // Initializes the CPU, AHB and APB busses clocks
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                                |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -187,6 +190,72 @@ static void DMA_Init()
     // DMA1_Channel2_IRQn interrupt configuration
     HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+}
+
+static void TIM2_Init(void)
+{
+    TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+    TIM_MasterConfigTypeDef sMasterConfig = {0};
+    TIM_OC_InitTypeDef sConfigOC = {0};
+
+    htim2.Instance = TIM2;
+    htim2.Init.Prescaler = 71;
+    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim2.Init.Period = 999;
+    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    HAL_TIM_Base_Init(&htim2);
+
+    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+    HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig);
+
+    HAL_TIM_PWM_Init(&htim2);
+
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig);
+
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 500;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2);
+
+    HAL_TIM_MspPostInit(&htim2);
+
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+}
+
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim_base)
+{
+    if (htim_base->Instance == TIM2)
+    {
+        // Peripheral clock enable
+        __HAL_RCC_TIM2_CLK_ENABLE();
+    }
+}
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    if (htim->Instance == TIM2)
+    {
+        // TIM2 GPIO Configuration
+        // PA1     ------> TIM2_CH2
+        GPIO_InitStruct.Pin = GPIO_PIN_1;
+        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    }
+}
+
+void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef *htim_base)
+{
+    if (htim_base->Instance == TIM2)
+    {
+        // Peripheral clock disable
+        __HAL_RCC_TIM2_CLK_DISABLE();
+    }
 }
 
 void Error_Handler()
