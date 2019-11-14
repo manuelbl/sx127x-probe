@@ -8,17 +8,12 @@
  * Main code (SPI data decoding, output, most initialization)
  */
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
 #include "main.h"
 #include "setup.h"
 #include "spi_analyzer.h"
 #include "timing.h"
+#include "timing_analyzer.h"
 #include "uart.h"
-
-#define TIMESTAMP_PATTERN "%10lu: "
-
-#define CORR 0.99996
 
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
@@ -37,7 +32,8 @@ static volatile int spiTrxDataEnd[EVENT_QUEUE_LEN];
 static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
 
-static SpiAnalyzer spiAnalyzer;
+static TimingAnalyzer timingAnalyzer;
+static SpiAnalyzer spiAnalyzer(timingAnalyzer);
 
 void Error_Handler();
 
@@ -64,14 +60,16 @@ int main()
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                spiAnalyzer.analyzeTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
+                spiAnalyzer.AnalyzeTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
                                        spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
                 break;
 
             case EventTypeDone:
+                timingAnalyzer.DoneInterrupt(time);
+                break;
+
             case EventTypeTimeout:
-                PrintTimestamp(time);
-                uartPrint(eventType == EventTypeDone ? "Done\r\n" : "Timeout\r\n");
+                timingAnalyzer.TimeoutInterrupt(time);
                 break;
             }
 
@@ -106,12 +104,4 @@ void SpiTrxCompleted()
         pos = 0;
 
     QueueEvent(EventTypeSpiTrx, pos);
-}
-
-void PrintTimestamp(uint32_t timestamp)
-{
-    timestamp = (uint32_t)lround(timestamp * CORR);
-    char buf[sizeof(TIMESTAMP_PATTERN) + 7];
-    snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
-    uartPrint(buf);
 }

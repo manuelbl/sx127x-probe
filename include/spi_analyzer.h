@@ -12,28 +12,21 @@
 #define _SPI_ANALYZER_H_
 
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "timing_analyzer.h"
 
 class SpiAnalyzer
 {
 public:
-    void analyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
-            const uint8_t* startBuf, const uint8_t* endBuf);
+    SpiAnalyzer(TimingAnalyzer ta) : timingAnalyzer(ta) {}
+    void AnalyzeTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
+                    const uint8_t *startBuf, const uint8_t *endBuf);
 
 private:
-    void processRegWrite(uint32_t time, uint8_t reg, uint8_t value);
-    void processOpmodeChange(uint32_t time, uint8_t value);
+    void ProcessRegWrite(uint32_t time, uint8_t reg, uint8_t value);
+    void ProcessOpmodeChange(uint32_t time, uint8_t value);
+
+private:
+    TimingAnalyzer &timingAnalyzer;
 };
-
-
-
-#ifdef __cplusplus
-}
-#endif
-
 
 #endif

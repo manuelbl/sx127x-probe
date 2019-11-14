@@ -8,13 +8,11 @@
  * SPI communication analyzer
  */
 
-#include <stdbool.h>
 #include "main.h"
 #include "spi_analyzer.h"
-#include "uart.h"
 
 
-void SpiAnalyzer::analyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
+void SpiAnalyzer::AnalyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
         const uint8_t* startBuf, const uint8_t* endBuf)
 {
     const uint8_t* p = startTrx;
@@ -41,16 +39,16 @@ void SpiAnalyzer::analyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8
     if (p != endTrx)
         return;
     
-    processRegWrite(time, reg, value);
+    ProcessRegWrite(time, reg, value);
 }
 
 
-void SpiAnalyzer::processRegWrite(uint32_t time, uint8_t reg, uint8_t value)
+void SpiAnalyzer::ProcessRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 {
     switch (reg)
     {
         case 1: // OPMODE
-            processOpmodeChange(time, value);
+            ProcessOpmodeChange(time, value);
             break;
         default:
             break;
@@ -58,14 +56,15 @@ void SpiAnalyzer::processRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 }
 
 
-void SpiAnalyzer::processOpmodeChange(uint32_t time, uint8_t value)
+void SpiAnalyzer::ProcessOpmodeChange(uint32_t time, uint8_t value)
 {
-    // Check for mode RXSINGLE and TX, respectively
-    _Bool isRxStart = (value & 0x07) == 0x06;
-    _Bool isTxStart = (value & 0x07) == 0x03;
-    if (!isRxStart && !isTxStart)
-        return;
-
-    PrintTimestamp(time);
-    uartPrint(isRxStart ? "RX start\r\n" : "TX start\r\n");
+    uint8_t mode = value & 0x07;
+    if (mode == 0x03)
+    {
+        timingAnalyzer.StartTx(time);
+    }
+    else if (mode == 0x06)
+    {
+        timingAnalyzer.StartRx(time);
+    }
 }

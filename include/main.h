@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+#define TIMING_CORR 0.99996
+
 
 typedef enum
 {
@@ -27,7 +29,6 @@ typedef enum
 
 
 void QueueEvent(EventType eventType, int spiPos);
-void PrintTimestamp(uint32_t timestamp);
 
 
 #ifdef __cplusplus
