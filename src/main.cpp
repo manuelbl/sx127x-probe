@@ -41,7 +41,7 @@ int main()
 {
     setup();
 
-    uartPrint("Start\r\n");
+    Uart.Print("Start\r\n");
 
     HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
 

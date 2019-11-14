@@ -32,7 +32,7 @@ void setup()
     DMA_Init();
     SPI1_Init();
     TIM2_Init();
-    uartInit();
+    Uart.Init();
 }
 
 // Initializes the Global MSP.

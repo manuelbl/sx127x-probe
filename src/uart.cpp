@@ -12,6 +12,9 @@
 #include "uart.h"
 
 
+UartImpl Uart;
+
+
 static UART_HandleTypeDef huart1;
 static DMA_HandleTypeDef hdma_usart1_tx;
 
@@ -41,15 +44,12 @@ static char hexBuf[HEX_BUF_LEN];
 static const char* HEX_DIGITS = "0123456789ABCDEF";
 
 
-static void startUartTransmit();
-
-
-void uartPrint(const char* str)
+void UartImpl::Print(const char* str)
 {
-    uartWrite((const uint8_t*)str, strlen(str));
+    Write((const uint8_t*)str, strlen(str));
 }
 
-void uartPrintHex(const uint8_t* data, size_t len, _Bool crlf)
+void UartImpl::PrintHex(const uint8_t* data, size_t len, _Bool crlf)
 {
     while (len > 0) {
         char* p = hexBuf;
@@ -69,11 +69,11 @@ void uartPrintHex(const uint8_t* data, size_t len, _Bool crlf)
             *p++ = '\n';
         }
 
-        uartWrite((const uint8_t*)hexBuf, p - hexBuf);
+        Write((const uint8_t*)hexBuf, p - hexBuf);
     }
 }
 
-void uartWrite(const uint8_t* data, size_t len)
+void UartImpl::Write(const uint8_t* data, size_t len)
 {
     int queueHead = txQueueHead + 1;
     if (queueHead >= TX_QUEUE_LEN)
@@ -108,14 +108,14 @@ void uartWrite(const uint8_t* data, size_t len)
     txQueueHead = queueHead;
     
     // start transmission
-    startUartTransmit();
+    StartTransmit();
 
     // take care of the remainder (using tail recursion)
     if (len > size)
-        uartWrite(data + size, len - size);
+        Write(data + size, len - size);
 }
 
-void startUartTransmit()
+void UartImpl::StartTransmit()
 {
     __disable_irq();
 
@@ -156,11 +156,11 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart)
 
     __enable_irq();
 
-    startUartTransmit();
+    Uart.StartTransmit();
 }
 
 
-void uartInit()
+void UartImpl::Init()
 {
     huart1.Instance = USART1;
     huart1.Init.BaudRate = 115200;

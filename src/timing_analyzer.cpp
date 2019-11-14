@@ -21,13 +21,13 @@
 void TimingAnalyzer::OnTxStart(uint32_t time)
 {
     PrintTimestamp(time);
-    uartPrint("TX start\r\n");
+    Uart.Print("TX start\r\n");
 }
 
 void TimingAnalyzer::OnRxStart(uint32_t time)
 {
     PrintTimestamp(time);
-    uartPrint("RX start\r\n");
+    Uart.Print("RX start\r\n");
 }
 
 void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
@@ -35,17 +35,17 @@ void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
     timestamp = (uint32_t)lround(timestamp * TIMING_CORR);
     char buf[sizeof(TIMESTAMP_PATTERN) + 7];
     snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
-    uartPrint(buf);
+    Uart.Print(buf);
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 {
     PrintTimestamp(time);
-    uartPrint("Done\r\n");
+    Uart.Print("Done\r\n");
 }
 
 void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 {
     PrintTimestamp(time);
-    uartPrint("Timeout\r\n");
+    Uart.Print("Timeout\r\n");
 }
