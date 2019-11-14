@@ -14,9 +14,7 @@
 #include "timing_analyzer.h"
 #include "uart.h"
 
-
 #define TIMESTAMP_PATTERN "%10lu: "
-
 
 void TimingAnalyzer::OnTxStart(uint32_t time)
 {

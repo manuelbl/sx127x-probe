@@ -11,9 +11,7 @@
 #include <string.h>
 #include "uart.h"
 
-
 UartImpl Uart;
-
 
 static UART_HandleTypeDef huart1;
 static DMA_HandleTypeDef hdma_usart1_tx;
@@ -41,21 +39,22 @@ static volatile int txQueueTail = 0;
 #define HEX_BUF_LEN 25
 static char hexBuf[HEX_BUF_LEN];
 
-static const char* HEX_DIGITS = "0123456789ABCDEF";
+static const char *HEX_DIGITS = "0123456789ABCDEF";
 
-
-void UartImpl::Print(const char* str)
+void UartImpl::Print(const char *str)
 {
-    Write((const uint8_t*)str, strlen(str));
+    Write((const uint8_t *)str, strlen(str));
 }
 
-void UartImpl::PrintHex(const uint8_t* data, size_t len, _Bool crlf)
+void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 {
-    while (len > 0) {
-        char* p = hexBuf;
-        char* end = hexBuf + HEX_BUF_LEN;
+    while (len > 0)
+    {
+        char *p = hexBuf;
+        char *end = hexBuf + HEX_BUF_LEN;
 
-        while (len > 0 && p + 4 <= end) {
+        while (len > 0 && p + 4 <= end)
+        {
             uint8_t byte = *data++;
             *p++ = HEX_DIGITS[byte >> 4];
             *p++ = HEX_DIGITS[byte & 0xf];
@@ -69,26 +68,26 @@ void UartImpl::PrintHex(const uint8_t* data, size_t len, _Bool crlf)
             *p++ = '\n';
         }
 
-        Write((const uint8_t*)hexBuf, p - hexBuf);
+        Write((const uint8_t *)hexBuf, p - hexBuf);
     }
 }
 
-void UartImpl::Write(const uint8_t* data, size_t len)
+void UartImpl::Write(const uint8_t *data, size_t len)
 {
     int queueHead = txQueueHead + 1;
     if (queueHead >= TX_QUEUE_LEN)
         queueHead = 0;
     if (queueHead == txQueueTail)
         return; // chunk queue is full
-    
+
     int bufHead = txBufHead;
     int bufTail = txBufTail;
     size_t maxChunkSize = bufHead > bufTail
-        ? TX_BUF_LEN - bufHead
-        : bufTail - bufHead - 1;
+                              ? TX_BUF_LEN - bufHead
+                              : bufTail - bufHead - 1;
     if (maxChunkSize <= 0)
         return; // tx data buffer is full
-    
+
     // Check for maximum size:
     // - If the free space wraps around, two chunks are used.
     // - If the data to transmit is bigger than the free space,
@@ -96,7 +95,7 @@ void UartImpl::Write(const uint8_t* data, size_t len)
     size_t size = len;
     if (size > maxChunkSize)
         size = maxChunkSize;
-    
+
     // Copy data to transmit buffer
     memcpy(txBuf + bufHead, data, size);
     txBufHead += size;
@@ -106,7 +105,7 @@ void UartImpl::Write(const uint8_t* data, size_t len)
     // append chunk
     txChunkBreak[queueHead] = txBufHead;
     txQueueHead = queueHead;
-    
+
     // start transmission
     StartTransmit();
 
@@ -119,8 +118,7 @@ void UartImpl::StartTransmit()
 {
     __disable_irq();
 
-    if (huart1.gState != HAL_UART_STATE_READY
-        || txQueueTail == txQueueHead)
+    if (huart1.gState != HAL_UART_STATE_READY || txQueueTail == txQueueHead)
     {
         __enable_irq();
         return; // UART busy or queue empty
@@ -140,7 +138,7 @@ void UartImpl::StartTransmit()
     __enable_irq();
 }
 
-extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart)
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
     __disable_irq();
 
@@ -158,7 +156,6 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart)
 
     Uart.StartTransmit();
 }
-
 
 void UartImpl::Init()
 {

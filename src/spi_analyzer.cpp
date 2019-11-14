@@ -11,17 +11,16 @@
 #include "main.h"
 #include "spi_analyzer.h"
 
-
-void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
-        const uint8_t* startBuf, const uint8_t* endBuf)
+void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
+                        const uint8_t *startBuf, const uint8_t *endBuf)
 {
-    const uint8_t* p = startTrx;
+    const uint8_t *p = startTrx;
     uint8_t reg = *p;
 
     // check for write to register
     if ((reg & 0x80) == 0)
         return;
-    
+
     reg = reg & 0x7f;
 
     p++;
@@ -38,23 +37,21 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* e
     // check for transaction length
     if (p != endTrx)
         return;
-    
+
     OnRegWrite(time, reg, value);
 }
-
 
 void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 {
     switch (reg)
     {
-        case 1: // OPMODE
-            OnOpmodeChanged(time, value);
-            break;
-        default:
-            break;
+    case 1: // OPMODE
+        OnOpmodeChanged(time, value);
+        break;
+    default:
+        break;
     }
 }
-
 
 void SpiAnalyzer::OnOpmodeChanged(uint32_t time, uint8_t value)
 {

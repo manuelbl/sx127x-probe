@@ -19,9 +19,9 @@ class UartImpl
 {
 public:
     void Init();
-    void Write(const uint8_t* data, size_t len);
-    void Print(const char* str);
-    void PrintHex(const uint8_t* data, size_t len, _Bool crlf);
+    void Write(const uint8_t *data, size_t len);
+    void Print(const char *str);
+    void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
     void StartTransmit();
 };

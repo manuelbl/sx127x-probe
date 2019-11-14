@@ -14,22 +14,20 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #define TIMING_CORR 0.99996
 
+    typedef enum
+    {
+        EventTypeSpiTrx,
+        EventTypeDone,
+        EventTypeTimeout
+    } EventType;
 
-typedef enum
-{
-    EventTypeSpiTrx,
-    EventTypeDone,
-    EventTypeTimeout
-} EventType;
-
-
-void QueueEvent(EventType eventType, int spiPos);
-
+    void QueueEvent(EventType eventType, int spiPos);
 
 #ifdef __cplusplus
 }

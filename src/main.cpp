@@ -61,7 +61,7 @@ int main()
             {
             case EventTypeSpiTrx:
                 spiAnalyzer.OnTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
-                                       spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
+                                  spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
                 break;
 
             case EventTypeDone:

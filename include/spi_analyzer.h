@@ -19,7 +19,7 @@ class SpiAnalyzer
 public:
     SpiAnalyzer(TimingAnalyzer ta) : timingAnalyzer(ta) {}
     void OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
-                    const uint8_t *startBuf, const uint8_t *endBuf);
+               const uint8_t *startBuf, const uint8_t *endBuf);
 
 private:
     void OnRegWrite(uint32_t time, uint8_t reg, uint8_t value);
