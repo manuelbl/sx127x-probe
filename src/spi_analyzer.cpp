@@ -12,7 +12,7 @@
 #include "spi_analyzer.h"
 
 
-void SpiAnalyzer::AnalyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
+void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t* startTrx, const uint8_t* endTrx,
         const uint8_t* startBuf, const uint8_t* endBuf)
 {
     const uint8_t* p = startTrx;
@@ -39,16 +39,16 @@ void SpiAnalyzer::AnalyzeTrx(uint32_t time, const uint8_t* startTrx, const uint8
     if (p != endTrx)
         return;
     
-    ProcessRegWrite(time, reg, value);
+    OnRegWrite(time, reg, value);
 }
 
 
-void SpiAnalyzer::ProcessRegWrite(uint32_t time, uint8_t reg, uint8_t value)
+void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 {
     switch (reg)
     {
         case 1: // OPMODE
-            ProcessOpmodeChange(time, value);
+            OnOpmodeChanged(time, value);
             break;
         default:
             break;
@@ -56,15 +56,15 @@ void SpiAnalyzer::ProcessRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 }
 
 
-void SpiAnalyzer::ProcessOpmodeChange(uint32_t time, uint8_t value)
+void SpiAnalyzer::OnOpmodeChanged(uint32_t time, uint8_t value)
 {
     uint8_t mode = value & 0x07;
     if (mode == 0x03)
     {
-        timingAnalyzer.StartTx(time);
+        timingAnalyzer.OnTxStart(time);
     }
     else if (mode == 0x06)
     {
-        timingAnalyzer.StartRx(time);
+        timingAnalyzer.OnRxStart(time);
     }
 }

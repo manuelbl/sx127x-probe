@@ -16,10 +16,10 @@
 class TimingAnalyzer
 {
 public:
-    void StartTx(uint32_t time);
-    void StartRx(uint32_t time);
-    void DoneInterrupt(uint32_t time);
-    void TimeoutInterrupt(uint32_t time);
+    void OnTxStart(uint32_t time);
+    void OnRxStart(uint32_t time);
+    void OnDoneInterrupt(uint32_t time);
+    void OnTimeoutInterrupt(uint32_t time);
 
 private:
     void PrintTimestamp(uint32_t timestamp);

@@ -18,12 +18,12 @@ class SpiAnalyzer
 {
 public:
     SpiAnalyzer(TimingAnalyzer ta) : timingAnalyzer(ta) {}
-    void AnalyzeTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
+    void OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
                     const uint8_t *startBuf, const uint8_t *endBuf);
 
 private:
-    void ProcessRegWrite(uint32_t time, uint8_t reg, uint8_t value);
-    void ProcessOpmodeChange(uint32_t time, uint8_t value);
+    void OnRegWrite(uint32_t time, uint8_t reg, uint8_t value);
+    void OnOpmodeChanged(uint32_t time, uint8_t value);
 
 private:
     TimingAnalyzer &timingAnalyzer;

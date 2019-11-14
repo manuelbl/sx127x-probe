@@ -60,16 +60,16 @@ int main()
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                spiAnalyzer.AnalyzeTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
+                spiAnalyzer.OnTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
                                        spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
                 break;
 
             case EventTypeDone:
-                timingAnalyzer.DoneInterrupt(time);
+                timingAnalyzer.OnDoneInterrupt(time);
                 break;
 
             case EventTypeTimeout:
-                timingAnalyzer.TimeoutInterrupt(time);
+                timingAnalyzer.OnTimeoutInterrupt(time);
                 break;
             }
 

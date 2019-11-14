@@ -18,13 +18,13 @@
 #define TIMESTAMP_PATTERN "%10lu: "
 
 
-void TimingAnalyzer::StartTx(uint32_t time)
+void TimingAnalyzer::OnTxStart(uint32_t time)
 {
     PrintTimestamp(time);
     uartPrint("TX start\r\n");
 }
 
-void TimingAnalyzer::StartRx(uint32_t time)
+void TimingAnalyzer::OnRxStart(uint32_t time)
 {
     PrintTimestamp(time);
     uartPrint("RX start\r\n");
@@ -38,13 +38,13 @@ void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
     uartPrint(buf);
 }
 
-void TimingAnalyzer::DoneInterrupt(uint32_t time)
+void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 {
     PrintTimestamp(time);
     uartPrint("Done\r\n");
 }
 
-void TimingAnalyzer::TimeoutInterrupt(uint32_t time)
+void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 {
     PrintTimestamp(time);
     uartPrint("Timeout\r\n");
