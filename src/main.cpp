@@ -1,5 +1,5 @@
 /*
- * LMIC Probe - STM32F1x software to monitor LMIC LoRa timings
+ * SX127x Probe - STM32F1x software to monitor LoRa timings
  * 
  * Copyright (c) 2019 Manuel Bleichenbacher
  * Licensed under MIT License
@@ -10,16 +10,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include "setup.h"
-#include "uart.h"
-#include "timing.h"
 #include "main.h"
-
+#include "setup.h"
+#include "spi_analyzer.h"
+#include "timing.h"
+#include "uart.h"
 
 #define TIMESTAMP_PATTERN "%10lu: "
 
 #define CORR 0.99996
-
 
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
@@ -38,10 +37,9 @@ static volatile int spiTrxDataEnd[EVENT_QUEUE_LEN];
 static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
 
-void Error_Handler();
-static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end);
-static void PrintTimestamp(uint32_t timestamp);
+static SpiAnalyzer spiAnalyzer;
 
+void Error_Handler();
 
 int main()
 {
@@ -66,8 +64,10 @@ int main()
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                TestForRxTxStart(time, start, spiDataBuf + spiTrxDataEnd[tail]);
+                spiAnalyzer.analyzeTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
+                                       spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
                 break;
+
             case EventTypeDone:
             case EventTypeTimeout:
                 PrintTimestamp(time);
@@ -79,37 +79,6 @@ int main()
         }
     }
 }
-
-static void TestForRxTxStart(uint32_t time, uint8_t *start, uint8_t *end)
-{
-    uint8_t *p = start;
-
-    // check for write to OPMODE register
-    if (*p != 0x81)
-        return;
-
-    p++;
-    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
-        p = spiDataBuf;
-    
-    // Check for mode RXSINGLE and TX, respectively
-    _Bool isRxStart = (*p & 0x07) == 0x06;
-    _Bool isTxStart = (*p & 0x07) == 0x03;
-    if (!isRxStart && !isTxStart)
-        return;
-
-    p++;
-    if (p == spiDataBuf + SPI_DATA_BUF_LEN)
-        p = spiDataBuf;
-    
-    // Check for a complete SPI transaction
-    if (p != end)
-        return;
-
-    PrintTimestamp(time);
-    uartPrint(isRxStart ? "RX start\r\n" : "TX start\r\n");
-}
-
 
 void QueueEvent(EventType eventType, int spiPos)
 {
@@ -141,7 +110,7 @@ void SpiTrxCompleted()
 
 void PrintTimestamp(uint32_t timestamp)
 {
-    timestamp = (uint32_t) lround(timestamp * CORR);
+    timestamp = (uint32_t)lround(timestamp * CORR);
     char buf[sizeof(TIMESTAMP_PATTERN) + 7];
     snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
     uartPrint(buf);

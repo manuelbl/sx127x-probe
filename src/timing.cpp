@@ -1,5 +1,5 @@
 /*
- * LMIC Probe - STM32F1x software to monitor LMIC LoRa timings
+ * SX127x Probe - STM32F1x software to monitor LoRa timings
  * 
  * Copyright (c) 2019 Manuel Bleichenbacher
  * Licensed under MIT License
