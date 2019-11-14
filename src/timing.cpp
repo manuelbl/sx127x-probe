@@ -16,7 +16,6 @@ volatile uint32_t UptimeMillis;
 
 extern "C" void SysTick_Handler()
 {
-    HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_13);
     UptimeMillis++;
     HAL_IncTick();
 }

@@ -1,24 +1,32 @@
-# LMIC Probe – STM32F1x software to monitor LMIC LoRa timings
+# SX127x Probe – STM32F1x software to monitor the LoRa timings of a Semtech SX127x chip
 
-Software to monitor LMIC (or SX127x in general) LMIC LoRa timings. The software is run on a STM32F1x board (e.g. Blue Pill or Black Pill) and connected to the several pins of the LoRa board. It monitors the SPI communication and the interrupt pins, measures the timing and analyzes whether they conform to the LoRa standard.
+Software to monitor the communictaion with a Semtech SX127x chip to verify the firmware such a LMIC achieves correct LoRa timings. The software is run on a STM32F1x board (e.g. Blue Pill or Black Pill) and connected to  several pins of the LoRa board. It monitors the SPI communication and the interrupt pins, measures the timing and analyzes whether they conform to the LoRa standard.
 
 
 ## Connections
 
-| LoRa board | Monitor board |
-| ---------- | ------------- |
-| GND        | GND           |
-| NSS        | PA4           |
-| SCLK       | PA5           |
-| MOSI       | PA7           |
-| DIO0       | PB0           |
-| DIO1       | PB1           |
+### Connections between probe (STM32 board) and SX127x board
 
-With the exception of GND, all other connections are configured as inputs with no pull up/down. So they can be connected in addition to the already existing connections between the SX127x chip and the MCU. They do not affect the LoRa board.
+| SX127x     | Probe     |
+| ---------- | --------- |
+| GND        | GND       |
+| NSS        | PA4       |
+| SCLK       | PA5       |
+| MOSI       | PA7       |
+| DIO0       | PB0       |
+| DIO1       | PB1       |
+
+With the exception of GND, all connections are configured as inputs with no pull up/down. So they can be connected in addition to the already existing connections between the SX127x chip and the MCU. They do not affect the SX127x/LoRa board.
+
+### Outputs
 
 The result is writting to the serial output, using 115,200 bps:
 
-- PA9 (TX)
+- PA9: TX
+
+Additionally, a 1 kHz square wave is output to measure the accurracy of the probe clock. If the output signal deviates from 1 kHz, it can be corrected in software (line 21 in `main.cpp`).
+
+- PA1: 1 kHz reference clock
 
 
 ## Project
