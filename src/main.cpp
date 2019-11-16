@@ -15,12 +15,12 @@
 #include "timing_analyzer.h"
 #include "uart.h"
 
-typedef enum
+enum EventType
 {
     EventTypeSpiTrx,
     EventTypeDone,
     EventTypeTimeout
-} EventType;
+};
 
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
@@ -42,14 +42,13 @@ static volatile int eventQueueTail = 0;
 static TimingAnalyzer timingAnalyzer;
 static SpiAnalyzer spiAnalyzer(spiDataBuf, SPI_DATA_BUF_LEN, timingAnalyzer);
 
-void Error_Handler();
-
 int main()
 {
     setup();
 
     Uart.Print("Start\r\n");
 
+    // Receive SPI data into a circuar buffer indefinitely
     HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
 
     while (1)
@@ -95,7 +94,11 @@ void QueueEvent(EventType eventType, int spiPos)
     if (head >= EVENT_QUEUE_LEN)
         head = 0;
     if (head == eventQueueTail)
+    {
+        // queue overrun
+        ErrorHandler();
         return;
+    }
 
     eventTypes[head] = eventType;
     eventTime[head] = us;
@@ -103,6 +106,7 @@ void QueueEvent(EventType eventType, int spiPos)
     eventQueueHead = head;
 }
 
+// Called when an SPI transaction has completed (NSS returns to HIGH)
 void SpiTrxCompleted()
 {
     int pos = SPI_DATA_BUF_LEN - __HAL_DMA_GET_COUNTER(&hdma_spi1_rx);
@@ -112,14 +116,23 @@ void SpiTrxCompleted()
     QueueEvent(EventTypeSpiTrx, pos);
 }
 
+// Called when the DIO0 signal goes high
 extern "C" void EXTI0_IRQHandler(void)
 {
     QueueEvent(EventTypeDone, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
 }
 
+// Called when the DIO1 signal goes high
 extern "C" void EXTI1_IRQHandler(void)
 {
     QueueEvent(EventTypeTimeout, -1);
     HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+}
+
+void ErrorHandler()
+{
+    while (1)
+    {
+    }
 }

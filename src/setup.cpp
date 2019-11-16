@@ -241,13 +241,6 @@ extern "C" void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef *htim_base)
     }
 }
 
-void Error_Handler()
-{
-    while (1)
-    {
-    }
-}
-
 extern "C" void NMI_Handler()
 {
     HAL_RCC_NMI_IRQHandler();

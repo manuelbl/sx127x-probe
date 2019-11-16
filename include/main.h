@@ -15,4 +15,7 @@
 
 #define TIMING_CORR 0.99996
 
+
+void ErrorHandler();
+
 #endif

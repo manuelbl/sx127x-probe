@@ -10,6 +10,7 @@
 #include <stm32f1xx_hal.h>
 #include <string.h>
 #include "uart.h"
+#include "main.h"
 
 UartImpl Uart;
 
@@ -78,7 +79,11 @@ void UartImpl::Write(const uint8_t *data, size_t len)
     if (queueHead >= TX_QUEUE_LEN)
         queueHead = 0;
     if (queueHead == txQueueTail)
-        return; // chunk queue is full
+    {
+        // chunk queue is full
+        ErrorHandler();
+        return;
+    }
 
     int bufHead = txBufHead;
     int bufTail = txBufTail;
@@ -86,7 +91,11 @@ void UartImpl::Write(const uint8_t *data, size_t len)
                               ? TX_BUF_LEN - bufHead
                               : bufTail - bufHead - 1;
     if (maxChunkSize <= 0)
-        return; // tx data buffer is full
+    {
+        // tx data buffer is full
+        ErrorHandler();
+        return;
+    }
 
     // Check for maximum size:
     // - If the free space wraps around, two chunks are used.
