@@ -15,6 +15,13 @@
 #include "timing_analyzer.h"
 #include "uart.h"
 
+typedef enum
+{
+    EventTypeSpiTrx,
+    EventTypeDone,
+    EventTypeTimeout
+} EventType;
+
 // Buffer for payload data of SPI transaction.
 // The buffer is used as a circular buffer.
 #define SPI_DATA_BUF_LEN 128
@@ -33,7 +40,7 @@ static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
 
 static TimingAnalyzer timingAnalyzer;
-static SpiAnalyzer spiAnalyzer(timingAnalyzer);
+static SpiAnalyzer spiAnalyzer(spiDataBuf, SPI_DATA_BUF_LEN, timingAnalyzer);
 
 void Error_Handler();
 
@@ -60,8 +67,7 @@ int main()
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                spiAnalyzer.OnTrx(time, start, spiDataBuf + spiTrxDataEnd[tail],
-                                  spiDataBuf, spiDataBuf + SPI_DATA_BUF_LEN);
+                spiAnalyzer.OnTrx(time, start, spiDataBuf + spiTrxDataEnd[tail]);
                 break;
 
             case EventTypeDone:
@@ -104,4 +110,16 @@ void SpiTrxCompleted()
         pos = 0;
 
     QueueEvent(EventTypeSpiTrx, pos);
+}
+
+extern "C" void EXTI0_IRQHandler(void)
+{
+    QueueEvent(EventTypeDone, -1);
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
+extern "C" void EXTI1_IRQHandler(void)
+{
+    QueueEvent(EventTypeTimeout, -1);
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 }

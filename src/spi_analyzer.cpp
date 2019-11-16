@@ -11,8 +11,7 @@
 #include "main.h"
 #include "spi_analyzer.h"
 
-void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
-                        const uint8_t *startBuf, const uint8_t *endBuf)
+void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx)
 {
     const uint8_t *p = startTrx;
     uint8_t reg = *p;
@@ -24,15 +23,15 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
     reg = reg & 0x7f;
 
     p++;
-    if (p == endBuf)
-        p = startBuf;
+    if (p == circularBufferEnd)
+        p = circularBufferStart;
 
     // save register value
     uint8_t value = *p;
 
     p++;
-    if (p == endBuf)
-        p = startBuf;
+    if (p == circularBufferEnd)
+        p = circularBufferStart;
 
     // check for transaction length
     if (p != endTrx)

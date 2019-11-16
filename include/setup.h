@@ -13,11 +13,6 @@
 
 #include <stm32f1xx_hal.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
 #define DIO0_PIN GPIO_PIN_0
 #define DIO0_GPIO_PORT GPIOB
 #define DIO1_PIN GPIO_PIN_1
@@ -30,10 +25,5 @@ void DioTriggered(int dio);
 void SpiTrxCompleted();
 
 void setup();
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

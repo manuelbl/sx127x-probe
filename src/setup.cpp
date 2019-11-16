@@ -293,18 +293,6 @@ extern "C" void PendSV_Handler()
 {
 }
 
-extern "C" void EXTI0_IRQHandler(void)
-{
-    QueueEvent(EventTypeDone, -1);
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
-}
-
-extern "C" void EXTI1_IRQHandler(void)
-{
-    QueueEvent(EventTypeTimeout, -1);
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
-}
-
 extern "C" void EXTI4_IRQHandler(void)
 {
     SpiTrxCompleted();

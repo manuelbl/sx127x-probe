@@ -12,14 +12,15 @@
 #define _SPI_ANALYZER_H_
 
 #include <stdint.h>
+#include <stddef.h>
 #include "timing_analyzer.h"
 
 class SpiAnalyzer
 {
 public:
-    SpiAnalyzer(TimingAnalyzer ta) : timingAnalyzer(ta) {}
-    void OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx,
-               const uint8_t *startBuf, const uint8_t *endBuf);
+    SpiAnalyzer(const uint8_t* buf, size_t bufSize, TimingAnalyzer ta)
+        : timingAnalyzer(ta), circularBufferStart(buf), circularBufferEnd(buf + bufSize) {}
+    void OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx);
 
 private:
     void OnRegWrite(uint32_t time, uint8_t reg, uint8_t value);
@@ -27,6 +28,8 @@ private:
 
 private:
     TimingAnalyzer &timingAnalyzer;
+    const uint8_t* circularBufferStart;
+    const uint8_t* circularBufferEnd;
 };
 
 #endif

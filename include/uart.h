@@ -23,6 +23,9 @@ public:
     void Print(const char *str);
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
+    void TransmissionCompleted(uint16_t txSize);
+
+private:
     void StartTransmit();
 };
 
