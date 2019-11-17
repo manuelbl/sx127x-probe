@@ -38,6 +38,7 @@ static volatile uint32_t eventTime[EVENT_QUEUE_LEN];
 static volatile int spiTrxDataEnd[EVENT_QUEUE_LEN];
 static volatile int eventQueueHead = 0;
 static volatile int eventQueueTail = 0;
+static volatile uint8_t eventQueueOverflow = 0;
 
 static TimingAnalyzer timingAnalyzer;
 static SpiAnalyzer spiAnalyzer(spiDataBuf, SPI_DATA_BUF_LEN, timingAnalyzer);
@@ -53,6 +54,10 @@ int main()
 
     while (1)
     {
+        if (eventQueueOverflow != 0)
+        {
+            ErrorHandler();
+        }
         if (eventQueueHead != eventQueueTail)
         {
             int tail = eventQueueTail;
@@ -95,8 +100,8 @@ void QueueEvent(EventType eventType, int spiPos)
         head = 0;
     if (head == eventQueueTail)
     {
-        // queue overrun
-        ErrorHandler();
+        // queue overflow
+        eventQueueOverflow = 1;
         return;
     }
 
