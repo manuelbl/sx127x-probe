@@ -91,7 +91,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 
         uint32_t txExpected = CalculateAirTime();
         uint32_t txEffective = txEndTime - txStartTime;
-        snprintf(formatBuf, sizeof(formatBuf), "TX: expected %ld us, effective %ld us\r\n",
+        snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
                 txExpected, txEffective);
         Uart.Print(formatBuf);
     }
@@ -118,6 +118,9 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         return;
     }
 
+    uint32_t txExpected = CalculateTimeoutTime();
+    uint32_t txEffective;
+
     PrintTimestamp(time);
     Uart.Print("Timeout\r\n");
 
@@ -125,13 +128,20 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     {
         phase = LoraPhaseBeforeRx2Window;
         rx1End = time;
+        txEffective = time - rx1Start;
+
     }
     else
     {
         rx2End = time;
         result = LoraResultNoDownlink;
+        txEffective = time - rx2Start;
         OnRxTxCompleted();
     }
+
+    snprintf(formatBuf, sizeof(formatBuf), "RX timeout: expected: %ld us, effective: %ld us\r\n",
+            txExpected, txEffective);
+    Uart.Print(formatBuf);
 }
 
 void TimingAnalyzer::OnRxTxCompleted()
@@ -152,10 +162,6 @@ uint32_t TimingAnalyzer::CalculateAirTime()
     uint32_t symbolDuration = (1 << spreadingFactor) * 1000000 / bandwidth;
     uint32_t preambleDuration = 12 * symbolDuration + symbolDuration / 4;
 
-    // DE = 1 when the low data rate optimization is enabled, DE = 0 for disabled.
-    // When 'auto' then only for SF11 and SF12, on 125kHz
-    // const de = ((lowDrOptimize === 'auto' && +bw === 125 && +sf >= 11) || lowDrOptimize === true) ? 1 : 0;
-    
     uint8_t div = 4 * (spreadingFactor - 2 * lowDataRateOptimization);
     uint32_t numPayloadSymbols
             = (8 * payloadLength - 4 * spreadingFactor + 28 + 16 - 20 * implicitHeader + div - 1) / div;
@@ -166,4 +172,10 @@ uint32_t TimingAnalyzer::CalculateAirTime()
     uint32_t payloadDuration = numPayloadSymbols * symbolDuration;
 
     return preambleDuration + payloadDuration;
+}
+
+uint32_t TimingAnalyzer::CalculateTimeoutTime()
+{
+    uint32_t symbolDuration = (1 << spreadingFactor) * 1000000 / bandwidth;
+    return symbolDuration * numTimeoutSymbols;
 }

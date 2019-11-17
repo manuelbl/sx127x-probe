@@ -56,6 +56,7 @@ private:
     void OnRxTxCompleted();
     void PrintTimestamp(uint32_t timestamp);
     uint32_t CalculateAirTime();
+    uint32_t CalculateTimeoutTime();
 
     LoraTxRxPhase phase;
     LoraTxRxResult result;
