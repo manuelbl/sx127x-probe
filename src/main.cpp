@@ -61,17 +61,17 @@ int main()
         if (eventQueueHead != eventQueueTail)
         {
             int tail = eventQueueTail;
-            EventType eventType = eventTypes[tail];
-            uint8_t *start = spiDataBuf + spiTrxDataEnd[tail];
-            uint32_t time = eventTime[tail];
+            int spiStartPos = spiTrxDataEnd[tail];
             tail++;
             if (tail >= EVENT_QUEUE_LEN)
                 tail = 0;
+            EventType eventType = eventTypes[tail];
+            uint32_t time = eventTime[tail];
 
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                spiAnalyzer.OnTrx(time, start, spiDataBuf + spiTrxDataEnd[tail]);
+                spiAnalyzer.OnTrx(time, spiDataBuf + spiStartPos, spiDataBuf + spiTrxDataEnd[tail]);
                 break;
 
             case EventTypeDone:

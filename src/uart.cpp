@@ -75,14 +75,31 @@ void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 
 void UartImpl::Write(const uint8_t *data, size_t len)
 {
-    size_t processed = TryAppend(data, len);
+    size_t size = TryAppend(data, len);
 
     while (1)
     {
-        data += processed;
-        len -= processed;
+        data += size;
+        len -= size;
         if (len == 0)
             return;
+
+        int bufHead = txBufHead;
+        int bufTail = txBufTail;
+        size_t availChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
+        if (availChunkSize == 0)
+        {
+            // tx data buffer is full
+            ErrorHandler();
+            return;
+        }
+
+        // Copy data to transmit buffer
+        size = len <= availChunkSize ? len : availChunkSize;
+        memcpy(txBuf + bufHead, data, size);
+        bufHead += size;
+        if (bufHead >= TX_BUF_LEN)
+            bufHead = 0;
 
         int queueHead = txQueueHead + 1;
         if (queueHead >= TX_QUEUE_LEN)
@@ -94,30 +111,6 @@ void UartImpl::Write(const uint8_t *data, size_t len)
             return;
         }
 
-        int bufHead = txBufHead;
-        int bufTail = txBufTail;
-        size_t maxChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
-        if (maxChunkSize <= 0)
-        {
-            // tx data buffer is full
-            ErrorHandler();
-            return;
-        }
-
-        // Check for maximum size:
-        // - If the free space wraps around, two chunks are used.
-        // - If the data to transmit is bigger than the free space,
-        //   the remainder is discarded.
-        size_t size = len;
-        if (size > maxChunkSize)
-            size = maxChunkSize;
-
-        // Copy data to transmit buffer
-        memcpy(txBuf + bufHead, data, size);
-        bufHead += size;
-        if (bufHead >= TX_BUF_LEN)
-            bufHead = 0;
-
         // append chunk
         txBufHead = bufHead;
         txChunkBreak[queueHead] = bufHead;
@@ -125,8 +118,6 @@ void UartImpl::Write(const uint8_t *data, size_t len)
 
         // start transmission
         StartTransmit();
-
-        processed = size;
     }
 }
 
@@ -157,19 +148,19 @@ size_t UartImpl::TryAppend(const uint8_t *data, size_t len)
     // check available space in buffer
     int bufHead = txBufHead;
     int bufTail = txBufTail;
-    size_t maxChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
-    if (maxChunkSize <= 0)
+    size_t availChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
+    if (availChunkSize == 0)
     {
         // tx data buffer is full
         __enable_irq();
         return 0;
     }
 
-    size_t appendSize = len > maxChunkSize ? maxChunkSize : len;
+    size_t size = len <= availChunkSize ? len : availChunkSize;
     
     // reserve space
-    int head = bufHead;
-    bufHead += appendSize;
+    int prevBufHead = bufHead;
+    bufHead += size;
     if (bufHead >= TX_BUF_LEN)
         bufHead = 0;
     txBufHead = bufHead;
@@ -178,8 +169,8 @@ size_t UartImpl::TryAppend(const uint8_t *data, size_t len)
     __enable_irq();
 
     // copy data
-    memcpy(txBuf + head, data, appendSize);
-    return appendSize;
+    memcpy(txBuf + prevBufHead, data, size);
+    return size;
 }
 
 void UartImpl::StartTransmit()
