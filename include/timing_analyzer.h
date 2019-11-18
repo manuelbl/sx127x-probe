@@ -13,14 +13,15 @@
 
 #include <stdint.h>
 
-enum LoraTxRxPhase
+enum LoraTxRxStage
 {
-    LoraPhaseIdle,
-    LoraPhaseTransmitting,
-    LoraPhaseBeforeRx1Window,
-    LoraPhaseInRx1Window,
-    LoraPhaseBeforeRx2Window,
-    LoraPhaseInRx2Window
+    LoraStageIdle,
+    LoraStageTransmitting,
+    LoraStageBeforeRx1Window,
+    LoraStageInRx1Window,
+    LoraStageBeforeRx2Window,
+    LoraStageInRx2Window,
+    LoraStageWaitingForData
 };
 
 enum LoraTxRxResult
@@ -40,6 +41,7 @@ public:
     void OnRxStart(uint32_t time);
     void OnDoneInterrupt(uint32_t time);
     void OnTimeoutInterrupt(uint32_t time);
+    void OnDataReceived(uint8_t rxPayloadLength);
 
     void SetRxSymbolTimeout(uint16_t numTimeoutSymbols) { this->numTimeoutSymbols = numTimeoutSymbols; }
     void SetBandwidth(uint32_t bandwidth) { this->bandwidth = bandwidth; }
@@ -48,17 +50,18 @@ public:
     void SetSpreadingFactor(uint8_t spreadingFactor) { this->spreadingFactor = spreadingFactor; }
     void SetCrcOn(uint8_t crcOn) { this->crcOn = crcOn; }
     void SetPreambleLength(uint16_t preambleLength) { this->preambleLength = preambleLength; }
-    void SetPayloadLength(uint8_t payloadLength) { this->payloadLength = payloadLength; }
+    void SetTxPayloadLength(uint8_t txPayloadLength) { this->txPayloadLength = txPayloadLength; }
     void SetLowDataRateOptimization(uint8_t lowDataRateOptimization) { this->lowDataRateOptimization = lowDataRateOptimization; }
 
 private:
-    void ResetPhase();
+    void ResetStage();
     void OnRxTxCompleted();
     void PrintTimestamp(uint32_t timestamp);
-    uint32_t CalculateAirTime();
+    void OutOfSync(const char* stage);
+    uint32_t CalculateAirTime(uint8_t len);
     uint32_t CalculateTimeoutTime();
 
-    LoraTxRxPhase phase;
+    LoraTxRxStage stage;
     LoraTxRxResult result;
     uint32_t txStartTime;
     uint32_t txEndTime;
@@ -74,7 +77,7 @@ private:
     uint8_t spreadingFactor;
     uint8_t crcOn;
     uint16_t preambleLength;
-    uint8_t payloadLength;
+    uint8_t txPayloadLength;
     uint8_t lowDataRateOptimization;
 };
 

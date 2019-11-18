@@ -21,100 +21,111 @@ static char formatBuf[128];
 TimingAnalyzer::TimingAnalyzer()
     : bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
         implicitHeader(0), spreadingFactor(7), crcOn(0),
-        preambleLength(8), payloadLength(1), lowDataRateOptimization(0)
+        preambleLength(8), txPayloadLength(1), lowDataRateOptimization(0)
 {
-    ResetPhase();
+    ResetStage();
 }
 
-void TimingAnalyzer::ResetPhase()
+void TimingAnalyzer::ResetStage()
 {
-    phase = LoraPhaseIdle;
+    stage = LoraStageIdle;
     result = LoraResultNoDownlink;
 }
 
 void TimingAnalyzer::OnTxStart(uint32_t time)
 {
-    if (phase != LoraPhaseIdle)
+    if (stage != LoraStageIdle)
     {
-        Uart.Print("Invalid phase for TX start\r\n");
-        ResetPhase();
+        OutOfSync("TX start");
         return;
     }
 
     PrintTimestamp(time);
     Uart.Print("TX start\r\n");
-    phase = LoraPhaseTransmitting;
+    stage = LoraStageTransmitting;
     txStartTime = time;
 }
 
 void TimingAnalyzer::OnRxStart(uint32_t time)
 {
-    if (phase != LoraPhaseBeforeRx1Window && phase != LoraPhaseBeforeRx2Window)
+    if (stage != LoraStageBeforeRx1Window && stage != LoraStageBeforeRx2Window)
     {
-        Uart.Print("Invalid phase for RX start\r\n");
-        ResetPhase();
+        OutOfSync("RX start");
         return;
     }
 
     PrintTimestamp(time);
     Uart.Print("RX start\r\n");
 
-    if (phase == LoraPhaseBeforeRx1Window)
+    if (stage == LoraStageBeforeRx1Window)
     {
-        phase = LoraPhaseInRx1Window;
+        stage = LoraStageInRx1Window;
         rx1Start = time;
     }
     else
     {
-        phase = LoraPhaseInRx2Window;
+        stage = LoraStageInRx2Window;
         rx2Start = time;
     }
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 {
-    if (phase != LoraPhaseTransmitting
-        && phase != LoraPhaseInRx1Window && phase != LoraPhaseInRx2Window)
+    if (stage != LoraStageTransmitting
+        && stage != LoraStageInRx1Window && stage != LoraStageInRx2Window)
     {
-        Uart.Print("Invalid phase for done interrupt\r\n");
-        ResetPhase();
+        OutOfSync("done interrupt");
         return;
     }
 
     PrintTimestamp(time);
     Uart.Print("Done\r\n");
 
-    if (phase == LoraPhaseTransmitting)
+    if (stage == LoraStageTransmitting)
     {
-        phase = LoraPhaseBeforeRx1Window;
+        stage = LoraStageBeforeRx1Window;
         txEndTime = time;
 
-        uint32_t txExpected = CalculateAirTime();
+        uint32_t txExpected = CalculateAirTime(txPayloadLength);
         uint32_t txEffective = txEndTime - txStartTime;
         snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
                 txExpected, txEffective);
         Uart.Print(formatBuf);
     }
-    else if (phase == LoraPhaseInRx1Window)
+    else if (stage == LoraStageInRx1Window)
     {
         rx1End = time;
         result = LoraResultDownlinkInRx1;
-        OnRxTxCompleted();
+        stage = LoraStageWaitingForData;
     }
     else
     {
         rx2End = time;
         result = LoraResultDownlinkInRx2;
-        OnRxTxCompleted();
+        stage = LoraStageWaitingForData;
     }
+}
+
+void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
+{
+    if (stage != LoraStageWaitingForData)
+    {
+        OutOfSync("reading FIFO");
+        return;
+    }
+    uint32_t rxExpected = CalculateAirTime(payloadLength);
+    uint32_t rxEffective = result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start;
+    snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
+            rxExpected, rxEffective);
+
+    OnRxTxCompleted();
 }
 
 void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 {
-    if (phase != LoraPhaseInRx1Window && phase != LoraPhaseInRx2Window)
+    if (stage != LoraStageInRx1Window && stage != LoraStageInRx2Window)
     {
-        Uart.Print("Invalid phase for timeout interrupt\r\n");
-        ResetPhase();
+        OutOfSync("timeout interrupt");
         return;
     }
 
@@ -124,9 +135,9 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     PrintTimestamp(time);
     Uart.Print("Timeout\r\n");
 
-    if (phase == LoraPhaseInRx1Window)
+    if (stage == LoraStageInRx1Window)
     {
-        phase = LoraPhaseBeforeRx2Window;
+        stage = LoraStageBeforeRx2Window;
         rx1End = time;
         txEffective = time - rx1Start;
 
@@ -146,7 +157,8 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 
 void TimingAnalyzer::OnRxTxCompleted()
 {
-    phase = LoraPhaseIdle;
+    stage = LoraStageIdle;
+    result = LoraResultNoDownlink;
 }
 
 void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
@@ -157,7 +169,16 @@ void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
     Uart.Print(buf);
 }
 
-uint32_t TimingAnalyzer::CalculateAirTime()
+void TimingAnalyzer::OutOfSync(const char* stage)
+{
+    Uart.Print("Probe out of sync: ");
+    Uart.Print(stage);
+    Uart.Print("\r\n");
+
+    ResetStage();
+}
+
+uint32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
 {
     uint32_t symbolDuration = (1 << spreadingFactor) * 1000000 / bandwidth;
     uint32_t preambleDuration = 12 * symbolDuration + symbolDuration / 4;

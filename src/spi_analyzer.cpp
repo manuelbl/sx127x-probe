@@ -30,6 +30,13 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
     const uint8_t *p = startTrx;
     uint8_t reg = *p;
 
+    // check for FIFO read
+    if (reg == 0x00)
+    {
+        OnFifoRead(time, startTrx, endTrx);
+        return;
+    }
+
     // check for write to register
     if ((reg & 0x80) == 0)
         return;
@@ -52,6 +59,16 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
         return;
 
     OnRegWrite(time, reg, value);
+}
+
+void SpiAnalyzer::OnFifoRead(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx)
+{
+    // FIFO read indicates received data.
+    // Interesting information is length of data.
+    if (endTrx < startTrx)
+        endTrx += circularBufferEnd - circularBufferStart;
+    uint8_t len = (uint8_t)(endTrx - startTrx - 1);
+    timingAnalyzer.OnDataReceived(len);
 }
 
 void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
@@ -151,7 +168,7 @@ void SpiAnalyzer::OnPreambleLsbChanged(uint8_t value)
 
 void SpiAnalyzer::OnPayloadLengthChanged(uint8_t value)
 {
-    timingAnalyzer.SetPayloadLength(value);
+    timingAnalyzer.SetTxPayloadLength(value);
 }
 
 void SpiAnalyzer::OnModemConfig3(uint8_t value)
