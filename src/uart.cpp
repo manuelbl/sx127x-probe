@@ -75,52 +75,111 @@ void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 
 void UartImpl::Write(const uint8_t *data, size_t len)
 {
-    int queueHead = txQueueHead + 1;
-    if (queueHead >= TX_QUEUE_LEN)
-        queueHead = 0;
-    if (queueHead == txQueueTail)
+    size_t processed = TryAppend(data, len);
+
+    while (1)
     {
-        // chunk queue is full
-        ErrorHandler();
-        return;
+        data += processed;
+        len -= processed;
+        if (len == 0)
+            return;
+
+        int queueHead = txQueueHead + 1;
+        if (queueHead >= TX_QUEUE_LEN)
+            queueHead = 0;
+        if (queueHead == txQueueTail)
+        {
+            // chunk queue is full
+            ErrorHandler();
+            return;
+        }
+
+        int bufHead = txBufHead;
+        int bufTail = txBufTail;
+        size_t maxChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
+        if (maxChunkSize <= 0)
+        {
+            // tx data buffer is full
+            ErrorHandler();
+            return;
+        }
+
+        // Check for maximum size:
+        // - If the free space wraps around, two chunks are used.
+        // - If the data to transmit is bigger than the free space,
+        //   the remainder is discarded.
+        size_t size = len;
+        if (size > maxChunkSize)
+            size = maxChunkSize;
+
+        // Copy data to transmit buffer
+        memcpy(txBuf + bufHead, data, size);
+        bufHead += size;
+        if (bufHead >= TX_BUF_LEN)
+            bufHead = 0;
+
+        // append chunk
+        txBufHead = bufHead;
+        txChunkBreak[queueHead] = bufHead;
+        txQueueHead = queueHead;
+
+        // start transmission
+        StartTransmit();
+
+        processed = size;
+    }
+}
+
+size_t UartImpl::TryAppend(const uint8_t *data, size_t len)
+{
+    // Try to append to newest pending chunk,
+    // provided it's not yet being transmitted
+    __disable_irq();
+
+    int queueTail = txQueueTail;
+    int queueHead = txQueueHead;
+    if (queueTail == queueHead)
+    {
+        // no pending chunk
+        __enable_irq();
+        return 0;
+    }
+    queueTail++;
+    if (queueTail >= TX_QUEUE_LEN)
+        queueTail = 0;
+    if (queueTail == queueHead)
+    {
+        // a single chunk already being sent
+        __enable_irq();
+        return 0;
     }
 
+    // check available space in buffer
     int bufHead = txBufHead;
     int bufTail = txBufTail;
-    size_t maxChunkSize = bufHead > bufTail
-                              ? TX_BUF_LEN - bufHead
-                              : bufTail - bufHead - 1;
+    size_t maxChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
     if (maxChunkSize <= 0)
     {
         // tx data buffer is full
-        ErrorHandler();
-        return;
+        __enable_irq();
+        return 0;
     }
 
-    // Check for maximum size:
-    // - If the free space wraps around, two chunks are used.
-    // - If the data to transmit is bigger than the free space,
-    //   the remainder is discarded.
-    size_t size = len;
-    if (size > maxChunkSize)
-        size = maxChunkSize;
+    size_t appendSize = len > maxChunkSize ? maxChunkSize : len;
+    
+    // reserve space
+    int head = bufHead;
+    bufHead += appendSize;
+    if (bufHead >= TX_BUF_LEN)
+        bufHead = 0;
+    txBufHead = bufHead;
+    txChunkBreak[queueHead] = bufHead;
 
-    // Copy data to transmit buffer
-    memcpy(txBuf + bufHead, data, size);
-    txBufHead += size;
-    if (txBufHead >= TX_BUF_LEN)
-        txBufHead = 0;
+    __enable_irq();
 
-    // append chunk
-    txChunkBreak[queueHead] = txBufHead;
-    txQueueHead = queueHead;
-
-    // start transmission
-    StartTransmit();
-
-    // take care of the remainder (using tail recursion)
-    if (len > size)
-        Write(data + size, len - size);
+    // copy data
+    memcpy(txBuf + head, data, appendSize);
+    return appendSize;
 }
 
 void UartImpl::StartTransmit()
