@@ -31,7 +31,12 @@ static uint8_t spiDataBuf[128];
 //  *  0 <= head < queue_len
 //  *  0 <= tail < queue_len
 //  *  head == tail => empty
-//  *  head + 1 == tail => full (mod queue_len)
+//  *  head + 1 == tail => full (modulo EVENT_QUEUE_LEN)
+// `head` points to the position where the next item must be added.
+// `tail` points to the next item that needs to be processed.
+// For event type `EventTypeSpiTrx`, the item's index can be used
+// to retrieve the end of the SPI data. The start of the SPI data
+// is at index - 1 (modulo EVENT_QUEUE_LEN).
 #define EVENT_QUEUE_LEN 16
 static volatile EventType eventTypes[EVENT_QUEUE_LEN];
 static volatile uint32_t eventTime[EVENT_QUEUE_LEN];
@@ -61,19 +66,18 @@ int main()
         if (eventQueueHead != eventQueueTail)
         {
             int tail = eventQueueTail;
-            int spiStartPos = spiTrxDataEnd[tail];
-            tail++;
-            if (tail >= EVENT_QUEUE_LEN)
-                tail = 0;
             EventType eventType = eventTypes[tail];
             uint32_t time = eventTime[tail];
+            int prev;
 
             switch (eventType)
             {
             case EventTypeSpiTrx:
-                spiAnalyzer.OnTrx(time, spiDataBuf + spiStartPos, spiDataBuf + spiTrxDataEnd[tail]);
+                prev = tail - 1;
+                if (prev < 0)
+                    prev = EVENT_QUEUE_LEN - 1;
+                spiAnalyzer.OnTrx(time, spiDataBuf + spiTrxDataEnd[prev], spiDataBuf + spiTrxDataEnd[tail]);
                 break;
-
             case EventTypeDone:
                 timingAnalyzer.OnDoneInterrupt(time);
                 break;
@@ -83,6 +87,9 @@ int main()
                 break;
             }
 
+            tail++;
+            if (tail >= EVENT_QUEUE_LEN)
+                tail = 0;
             eventQueueTail = tail;
         }
     }
@@ -93,7 +100,16 @@ void QueueEvent(EventType eventType, int spiPos)
     uint32_t us = GetMicrosFromISR();
     int head = eventQueueHead;
     if (spiPos == -1)
-        spiPos = spiTrxDataEnd[head];
+    {
+        int prev = head - 1;
+        if (prev < 0)
+            prev = EVENT_QUEUE_LEN - 1;
+        spiPos = spiTrxDataEnd[prev];
+    }
+
+    eventTypes[head] = eventType;
+    eventTime[head] = us;
+    spiTrxDataEnd[head] = spiPos;
 
     head++;
     if (head >= EVENT_QUEUE_LEN)
@@ -105,9 +121,6 @@ void QueueEvent(EventType eventType, int spiPos)
         return;
     }
 
-    eventTypes[head] = eventType;
-    eventTime[head] = us;
-    spiTrxDataEnd[head] = spiPos;
     eventQueueHead = head;
 }
 

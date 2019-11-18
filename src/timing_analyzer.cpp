@@ -117,6 +117,7 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
     uint32_t rxEffective = result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start;
     snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
             rxExpected, rxEffective);
+    Uart.Print(formatBuf);
 
     OnRxTxCompleted();
 }

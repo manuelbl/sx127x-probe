@@ -20,8 +20,11 @@ static DMA_HandleTypeDef hdma_usart1_tx;
 // Buffer for data to be transmitted via UART
 //  *  0 <= head < buf_len
 //  *  0 <= tail < buf_len
-//  *  tail + 1 == head => empty (mod buf_len)
+//  *  tail + 1 == head => empty (modulo TX_BUF_LEN)
 //  *  head == tail => full
+// `txBufHead` points to the positions where the next character
+// should be inserted. `txBufTail` points to the clast haracter
+// that has been transmitted.
 #define TX_BUF_LEN 1024
 static uint8_t txBuf[TX_BUF_LEN];
 static volatile int txBufHead = 1;
@@ -31,7 +34,13 @@ static volatile int txBufTail = 0;
 //  *  0 <= head < queue_len
 //  *  0 <= tail < queue_len
 //  *  head == tail => empty
-//  *  head + 1 == tail => full (mod queue_len)
+//  *  head + 1 == tail => full (modulo TX_QUEUE_LEN)
+// `txQueueHead` points to the position where the next item must be added.
+// `txQueueTail` points to the next item that needs to be processed
+// or is being processed.
+// With current item's index, `txChunkBreak` points to the end
+// of the data to be transmitted. The start can be retrieved with
+// index - 1 (modulo TX_QUEUE_LEN).
 #define TX_QUEUE_LEN 16
 static volatile int txChunkBreak[TX_QUEUE_LEN];
 static volatile int txQueueHead = 0;
@@ -84,8 +93,8 @@ void UartImpl::Write(const uint8_t *data, size_t len)
         if (len == 0)
             return;
 
-        int bufHead = txBufHead;
         int bufTail = txBufTail;
+        int bufHead = txBufHead;
         size_t availChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
         if (availChunkSize == 0)
         {
@@ -101,7 +110,12 @@ void UartImpl::Write(const uint8_t *data, size_t len)
         if (bufHead >= TX_BUF_LEN)
             bufHead = 0;
 
-        int queueHead = txQueueHead + 1;
+        // append chunk
+        int queueHead = txQueueHead;
+        txBufHead = bufHead;
+        txChunkBreak[queueHead] = bufHead;
+
+        queueHead++;
         if (queueHead >= TX_QUEUE_LEN)
             queueHead = 0;
         if (queueHead == txQueueTail)
@@ -111,9 +125,6 @@ void UartImpl::Write(const uint8_t *data, size_t len)
             return;
         }
 
-        // append chunk
-        txBufHead = bufHead;
-        txChunkBreak[queueHead] = bufHead;
         txQueueHead = queueHead;
 
         // start transmission
@@ -135,19 +146,20 @@ size_t UartImpl::TryAppend(const uint8_t *data, size_t len)
         __enable_irq();
         return 0;
     }
+
     queueTail++;
     if (queueTail >= TX_QUEUE_LEN)
         queueTail = 0;
     if (queueTail == queueHead)
     {
-        // a single chunk already being sent
+        // a single chunk (already being transmitted)
         __enable_irq();
         return 0;
     }
 
     // check available space in buffer
-    int bufHead = txBufHead;
     int bufTail = txBufTail;
+    int bufHead = txBufHead;
     size_t availChunkSize = bufHead > bufTail ? TX_BUF_LEN - bufHead : bufTail - bufHead - 1;
     if (availChunkSize == 0)
     {
@@ -164,12 +176,16 @@ size_t UartImpl::TryAppend(const uint8_t *data, size_t len)
     if (bufHead >= TX_BUF_LEN)
         bufHead = 0;
     txBufHead = bufHead;
+    queueHead--;
+    if (queueHead < 0)
+        queueHead = TX_QUEUE_LEN - 1;
     txChunkBreak[queueHead] = bufHead;
 
     __enable_irq();
 
     // copy data
     memcpy(txBuf + prevBufHead, data, size);
+
     return size;
 }
 
@@ -184,13 +200,13 @@ void UartImpl::StartTransmit()
     }
 
     int queueTail = txQueueTail;
-    int startPos = txChunkBreak[queueTail];
-    queueTail++;
-    if (queueTail >= TX_QUEUE_LEN)
-        queueTail = 0;
     int endPos = txChunkBreak[queueTail];
     if (endPos == 0)
         endPos = TX_BUF_LEN;
+    queueTail--;
+    if (queueTail < 0)
+        queueTail = TX_QUEUE_LEN - 1;
+    int startPos = txChunkBreak[queueTail];
 
     HAL_UART_Transmit_DMA(&huart1, txBuf + startPos, endPos - startPos);
 
@@ -201,14 +217,12 @@ void UartImpl::TransmissionCompleted(uint16_t txSize)
 {
     __disable_irq();
 
-    int queueTail = txQueueTail + 1;
+    int queueTail = txQueueTail;
+    txBufTail = txChunkBreak[queueTail]; 
+    
+    queueTail++;
     if (queueTail >= TX_QUEUE_LEN)
         queueTail = 0;
-    int bufTail = txBufTail;
-    bufTail += txSize;
-    if (bufTail >= TX_BUF_LEN)
-        bufTail -= TX_BUF_LEN;
-    txBufTail = bufTail;
     txQueueTail = queueTail;
 
     __enable_irq();
