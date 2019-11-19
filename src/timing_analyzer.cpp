@@ -19,7 +19,9 @@
 static char formatBuf[128];
 
 TimingAnalyzer::TimingAnalyzer()
-    : bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
+    : txStartTime(0), txEndTime(0),
+        rx1Start(0), rx1End(0), rx2Start(0), rx2End(0),
+        bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
         implicitHeader(0), spreadingFactor(7), crcOn(0),
         preambleLength(8), txPayloadLength(1), lowDataRateOptimization(0)
 {
@@ -88,7 +90,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 
         uint32_t txExpected = CalculateAirTime(txPayloadLength);
         uint32_t txEffective = txEndTime - txStartTime;
-        snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
+        snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
                 txExpected, txEffective);
         Uart.Print(formatBuf);
     }
@@ -115,7 +117,7 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
     }
     uint32_t rxExpected = CalculateAirTime(payloadLength);
     uint32_t rxEffective = result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start;
-    snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %ld us (calculated), overall duration: %ld us\r\n",
+    snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
             rxExpected, rxEffective);
     Uart.Print(formatBuf);
 
@@ -151,7 +153,7 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         OnRxTxCompleted();
     }
 
-    snprintf(formatBuf, sizeof(formatBuf), "RX timeout: expected: %ld us, effective: %ld us\r\n",
+    snprintf(formatBuf, sizeof(formatBuf), "RX timeout: expected: %lu us, effective: %lu us\r\n",
             txExpected, txEffective);
     Uart.Print(formatBuf);
 }
@@ -185,8 +187,8 @@ uint32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
     uint32_t preambleDuration = 12 * symbolDuration + symbolDuration / 4;
 
     uint8_t div = 4 * (spreadingFactor - 2 * lowDataRateOptimization);
-    uint32_t numPayloadSymbols
-            = (8 * payloadLength - 4 * spreadingFactor + 28 + 16 - 20 * implicitHeader + div - 1) / div;
+    int32_t numPayloadSymbols
+            = (8 * payloadLength - 4 * spreadingFactor + 44 - 20 * implicitHeader + div - 1) / div;
     numPayloadSymbols *= codingRate;
     if (numPayloadSymbols < 0)
         numPayloadSymbols = 0;

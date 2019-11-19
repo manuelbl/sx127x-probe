@@ -108,7 +108,7 @@ void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
         OnPayloadLengthChanged(value);
         break;
     case 0x26: // ModemConfig3
-        OnPayloadLengthChanged(value);
+        OnModemConfig3(value);
         break;
     default:
         break;
@@ -184,5 +184,5 @@ void SpiAnalyzer::OnPayloadLengthChanged(uint8_t value)
 
 void SpiAnalyzer::OnModemConfig3(uint8_t value)
 {
-    timingAnalyzer.SetLowDataRateOptimization((value >>3) & 0x001);
+    timingAnalyzer.SetLowDataRateOptimization((value >> 3) & 0x001);
 }
