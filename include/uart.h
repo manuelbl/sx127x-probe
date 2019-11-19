@@ -27,7 +27,7 @@ public:
 
 private:
     void StartTransmit();
-    size_t TryAppend(const uint8_t *data, size_t len);
+    uint8_t TryAppend(int bufHead);
 };
 
 extern UartImpl Uart;

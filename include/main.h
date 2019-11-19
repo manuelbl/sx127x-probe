@@ -12,10 +12,23 @@
 #define _MAIN_H_
 
 #include <stdint.h>
+#include <stm32f1xx.h>
 
 #define TIMING_CORR 0.99996
 
 
 void ErrorHandler();
+
+
+class InterruptGuard {
+public:
+    InterruptGuard() {
+        __disable_irq();
+    }
+
+    ~InterruptGuard() {
+        __enable_irq();
+    }
+};
 
 #endif
