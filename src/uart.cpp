@@ -129,6 +129,9 @@ void UartImpl::Write(const uint8_t *data, size_t len)
 
     // start transmission
     StartTransmit();
+
+    if (size < len)
+        Write(data + size, len - size);
 }
 
 uint8_t UartImpl::TryAppend(int bufHead)
