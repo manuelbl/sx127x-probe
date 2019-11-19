@@ -8,8 +8,8 @@
  * Timing functions
  */
 
-#ifndef _TIMING_H_
-#define _TIMING_H_
+#ifndef TIMING_H
+#define TIMING_H
 
 #include <stdint.h>
 #include <stm32f1xx_hal.h>

@@ -8,8 +8,8 @@
  * Main functions
  */
 
-#ifndef _MAIN_H_
-#define _MAIN_H_
+#ifndef MAIN_H
+#define MAIN_H
 
 #include <stdint.h>
 #include <stm32f1xx.h>

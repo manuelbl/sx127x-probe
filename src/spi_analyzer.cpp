@@ -44,15 +44,15 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
     // check for FIFO read
     if (reg == 0x00)
     {
-        OnFifoRead(time, startTrx, endTrx);
+        OnFifoRead(startTrx, endTrx);
         return;
     }
 
     // check for write to register
-    if ((reg & 0x80) == 0)
+    if ((reg & 0x80U) == 0)
         return;
 
-    reg = reg & 0x7f;
+    reg = reg & 0x7fU;
 
     p++;
     if (p == circularBufferEnd)
@@ -72,13 +72,13 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
     OnRegWrite(time, reg, value);
 }
 
-void SpiAnalyzer::OnFifoRead(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx)
+void SpiAnalyzer::OnFifoRead(const uint8_t *startTrx, const uint8_t *endTrx)
 {
     // FIFO read indicates received data.
     // Interesting information is length of data.
     if (endTrx < startTrx)
         endTrx += circularBufferEnd - circularBufferStart;
-    uint8_t len = (uint8_t)(endTrx - startTrx - 1);
+    uint8_t len = endTrx - startTrx - 1;
     timingAnalyzer.OnDataReceived(len);
 }
 
@@ -117,7 +117,7 @@ void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 
 void SpiAnalyzer::OnOpModeChanged(uint32_t time, uint8_t value)
 {
-    uint8_t mode = value & 0x07;
+    uint8_t mode = value & 0x07U;
     if (mode == 0x03)
     {
         timingAnalyzer.OnTxStart(time);
@@ -130,32 +130,32 @@ void SpiAnalyzer::OnOpModeChanged(uint32_t time, uint8_t value)
 
 void SpiAnalyzer::OnModemConfig1(uint8_t value)
 {
-    uint8_t bw = value >> 4;
+    uint8_t bw = value >> 4U;
     if (bw >= sizeof(BANDWIDTH_TABLE)/sizeof(BANDWIDTH_TABLE[0]))
         return;
     
     timingAnalyzer.SetBandwidth(BANDWIDTH_TABLE[bw]);
 
-    uint8_t cr = ((value >> 1) & 0x7) + 4;
+    uint8_t cr = ((value >> 1U) & 0x7U) + 4;
     if (cr < 5 || cr > 8)
         return;
 
     timingAnalyzer.SetCodingRate(cr);
 
-    timingAnalyzer.SetImplicitHeader(value & 0x01);
+    timingAnalyzer.SetImplicitHeader(value & 0x01U);
 }
 
 void SpiAnalyzer::OnModemConfig2(uint8_t value)
 {
-    uint8_t sf = value >> 4;
+    uint8_t sf = value >> 4U;
     if (sf < 6 || sf > 12)
         return;
     
     timingAnalyzer.SetSpreadingFactor(sf);
 
-    timingAnalyzer.SetCrcOn((value >> 2) & 0x01);
+    timingAnalyzer.SetCrcOn((value >> 2U) & 0x01U);
 
-    *(((uint8_t*)&symbolTimeout) + 1) = value & 0x03;
+    *(((uint8_t*)&symbolTimeout) + 1) = value & 0x03U;
     timingAnalyzer.SetRxSymbolTimeout(symbolTimeout);
 }
 
@@ -184,5 +184,5 @@ void SpiAnalyzer::OnPayloadLengthChanged(uint8_t value)
 
 void SpiAnalyzer::OnModemConfig3(uint8_t value)
 {
-    timingAnalyzer.SetLowDataRateOptimization((value >> 3) & 0x001);
+    timingAnalyzer.SetLowDataRateOptimization((value >> 3U) & 0x001U);
 }

@@ -8,24 +8,24 @@
  * LoRa timing analyzer
  */
 
-#include <math.h>
-#include <stdio.h>
-#include "main.h"
 #include "timing_analyzer.h"
+#include "main.h"
 #include "uart.h"
+#include <cmath>
+#include <cstdio>
 
 #define TIMESTAMP_PATTERN "%10lu: "
 
 static char formatBuf[128];
 
 TimingAnalyzer::TimingAnalyzer()
-    : txStartTime(0), txEndTime(0),
-        rx1Start(0), rx1End(0), rx2Start(0), rx2End(0),
-        bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
-        implicitHeader(0), spreadingFactor(7), crcOn(0),
-        preambleLength(8), txPayloadLength(1), lowDataRateOptimization(0)
+    : stage(LoraStageIdle), result(LoraResultNoDownlink),
+      txStartTime(0), txEndTime(0),
+      rx1Start(0), rx1End(0), rx2Start(0), rx2End(0),
+      bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
+      implicitHeader(0), spreadingFactor(7), crcOn(0),
+      preambleLength(8), txPayloadLength(1), lowDataRateOptimization(0)
 {
-    ResetStage();
 }
 
 void TimingAnalyzer::ResetStage()
@@ -73,8 +73,7 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 {
-    if (stage != LoraStageTransmitting
-        && stage != LoraStageInRx1Window && stage != LoraStageInRx2Window)
+    if (stage != LoraStageTransmitting && stage != LoraStageInRx1Window && stage != LoraStageInRx2Window)
     {
         OutOfSync("done interrupt");
         return;
@@ -91,7 +90,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         uint32_t txExpected = CalculateAirTime(txPayloadLength);
         uint32_t txEffective = txEndTime - txStartTime;
         snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
-                txExpected, txEffective);
+                 txExpected, txEffective);
         Uart.Print(formatBuf);
     }
     else if (stage == LoraStageInRx1Window)
@@ -118,7 +117,7 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
     uint32_t rxExpected = CalculateAirTime(payloadLength);
     uint32_t rxEffective = result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start;
     snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
-            rxExpected, rxEffective);
+             rxExpected, rxEffective);
     Uart.Print(formatBuf);
 
     OnRxTxCompleted();
@@ -143,7 +142,6 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         stage = LoraStageBeforeRx2Window;
         rx1End = time;
         txEffective = time - rx1Start;
-
     }
     else
     {
@@ -154,7 +152,7 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     }
 
     snprintf(formatBuf, sizeof(formatBuf), "RX timeout: expected: %lu us, effective: %lu us\r\n",
-            txExpected, txEffective);
+             txExpected, txEffective);
     Uart.Print(formatBuf);
 }
 
@@ -166,13 +164,13 @@ void TimingAnalyzer::OnRxTxCompleted()
 
 void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
 {
-    timestamp = (uint32_t)lround(timestamp * TIMING_CORR);
+    timestamp = static_cast<uint32_t>(lround(timestamp * TIMING_CORR));
     char buf[sizeof(TIMESTAMP_PATTERN) + 7];
     snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
     Uart.Print(buf);
 }
 
-void TimingAnalyzer::OutOfSync(const char* stage)
+void TimingAnalyzer::OutOfSync(const char *stage)
 {
     Uart.Print("Probe out of sync: ");
     Uart.Print(stage);
@@ -183,12 +181,11 @@ void TimingAnalyzer::OutOfSync(const char* stage)
 
 uint32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
 {
-    uint32_t symbolDuration = (1 << spreadingFactor) * 1000000 / bandwidth;
+    uint32_t symbolDuration = (1U << spreadingFactor) * 1000000 / bandwidth;
     uint32_t preambleDuration = 12 * symbolDuration + symbolDuration / 4;
 
     uint8_t div = 4 * (spreadingFactor - 2 * lowDataRateOptimization);
-    int32_t numPayloadSymbols
-            = (8 * payloadLength - 4 * spreadingFactor + 44 - 20 * implicitHeader + div - 1) / div;
+    int32_t numPayloadSymbols = (8 * payloadLength - 4 * spreadingFactor + 44 - 20 * implicitHeader + div - 1) / div;
     numPayloadSymbols *= codingRate;
     if (numPayloadSymbols < 0)
         numPayloadSymbols = 0;
@@ -200,6 +197,6 @@ uint32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
 
 uint32_t TimingAnalyzer::CalculateTimeoutTime()
 {
-    uint32_t symbolDuration = (1 << spreadingFactor) * 1000000 / bandwidth;
+    uint32_t symbolDuration = (1U << spreadingFactor) * 1000000 / bandwidth;
     return symbolDuration * numTimeoutSymbols;
 }

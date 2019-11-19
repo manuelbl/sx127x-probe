@@ -7,13 +7,13 @@
  * 
  * Main code (SPI data decoding, output, most initialization)
  */
-#include <string.h>
 #include "main.h"
 #include "setup.h"
 #include "spi_analyzer.h"
 #include "timing.h"
 #include "timing_analyzer.h"
 #include "uart.h"
+#include <cstring>
 
 enum EventType
 {
@@ -57,7 +57,7 @@ int main()
     // Receive SPI data into a circuar buffer indefinitely
     HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
 
-    while (1)
+    while (true)
     {
         if (eventQueueOverflow != 0)
         {
@@ -150,7 +150,7 @@ extern "C" void EXTI1_IRQHandler(void)
 
 void ErrorHandler()
 {
-    while (1)
+    while (true)
     {
     }
 }

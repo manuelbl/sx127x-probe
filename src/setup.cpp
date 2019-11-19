@@ -9,8 +9,8 @@
  */
 
 #include "setup.h"
-#include "uart.h"
 #include "main.h"
+#include "uart.h"
 
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
@@ -182,7 +182,7 @@ void DMA_Init()
     HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 }
 
-void TIM2_Init(void)
+void TIM2_Init()
 {
     TIM_ClockConfigTypeDef sClockSourceConfig = {0};
     TIM_MasterConfigTypeDef sMasterConfig = {0};
@@ -248,28 +248,28 @@ extern "C" void NMI_Handler()
 
 extern "C" void HardFault_Handler()
 {
-    while (1)
+    while (true)
     {
     }
 }
 
 extern "C" void MemManage_Handler()
 {
-    while (1)
+    while (true)
     {
     }
 }
 
 extern "C" void BusFault_Handler()
 {
-    while (1)
+    while (true)
     {
     }
 }
 
 extern "C" void UsageFault_Handler()
 {
-    while (1)
+    while (true)
     {
     }
 }

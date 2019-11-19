@@ -8,8 +8,8 @@
  * LoRa timing analyzer
  */
 
-#ifndef _TIMING_ANALYZER_H_
-#define _TIMING_ANALYZER_H_
+#ifndef TIMING_ANALYZER_H
+#define TIMING_ANALYZER_H
 
 #include <stdint.h>
 
@@ -56,9 +56,9 @@ public:
 private:
     void ResetStage();
     void OnRxTxCompleted();
-    void PrintTimestamp(uint32_t timestamp);
+    static void PrintTimestamp(uint32_t timestamp);
     void OutOfSync(const char* stage);
-    uint32_t CalculateAirTime(uint8_t len);
+    uint32_t CalculateAirTime(uint8_t payloadLength);
     uint32_t CalculateTimeoutTime();
 
     LoraTxRxStage stage;

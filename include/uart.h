@@ -8,12 +8,12 @@
  * Asynchronous UART/serial output
  */
 
-#ifndef _UART_H_
-#define _UART_H_
+#ifndef UART_H
+#define UART_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 class UartImpl
 {
@@ -23,11 +23,11 @@ public:
     void Print(const char *str);
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
-    void TransmissionCompleted(uint16_t txSize);
+    static void TransmissionCompleted();
 
 private:
-    void StartTransmit();
-    uint8_t TryAppend(int bufHead);
+    static void StartTransmit();
+    static bool TryAppend(int bufHead);
 };
 
 extern UartImpl Uart;

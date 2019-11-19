@@ -7,10 +7,10 @@
  * 
  * Asynchronous UART/serial output
  */
-#include <stm32f1xx_hal.h>
-#include <string.h>
 #include "uart.h"
 #include "main.h"
+#include <cstring>
+#include <stm32f1xx_hal.h>
 
 UartImpl Uart;
 
@@ -68,8 +68,8 @@ void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
         while (len > 0 && p + 4 <= end)
         {
             uint8_t byte = *data++;
-            *p++ = HEX_DIGITS[byte >> 4];
-            *p++ = HEX_DIGITS[byte & 0xf];
+            *p++ = HEX_DIGITS[byte >> 4U];
+            *p++ = HEX_DIGITS[byte & 0xfU];
             *p++ = ' ';
             len--;
         }
@@ -134,7 +134,7 @@ void UartImpl::Write(const uint8_t *data, size_t len)
         Write(data + size, len - size);
 }
 
-uint8_t UartImpl::TryAppend(int bufHead)
+bool UartImpl::TryAppend(int bufHead)
 {
     // Try to append to newest pending chunk,
     // provided it's not yet being transmitted
@@ -144,25 +144,25 @@ uint8_t UartImpl::TryAppend(int bufHead)
     int queueTail = txQueueTail;
     int queueHead = txQueueHead;
     if (queueTail == queueHead)
-        return 0; // no pending chunk
+        return false; // no pending chunk
 
     queueTail++;
     if (queueTail >= TX_QUEUE_LEN)
         queueTail = 0;
     if (queueTail == queueHead)
-        return 0; // a single chunk (already being transmitted)
+        return false; // a single chunk (already being transmitted)
 
     queueHead--;
     if (queueHead < 0)
         queueHead = TX_QUEUE_LEN - 1;
 
     if (txChunkBreak[queueHead] == 0)
-        return 0; // non-contiguous chunk
+        return false; // non-contiguous chunk
 
     txBufHead = bufHead;
     txChunkBreak[queueHead] = bufHead;
 
-    return 1;
+    return true;
 }
 
 void UartImpl::StartTransmit()
@@ -191,7 +191,7 @@ void UartImpl::StartTransmit()
     HAL_UART_Transmit_DMA(&huart1, txBuf + startPos, endPos - startPos);
 }
 
-void UartImpl::TransmissionCompleted(uint16_t txSize)
+void UartImpl::TransmissionCompleted()
 {
     {
         InterruptGuard guard;
@@ -210,7 +210,7 @@ void UartImpl::TransmissionCompleted(uint16_t txSize)
 
 extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-    Uart.TransmissionCompleted(huart->TxXferSize);
+    Uart.TransmissionCompleted();
 }
 
 

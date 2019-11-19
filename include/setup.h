@@ -8,8 +8,8 @@
  * Peripheral setup and initialization (incl. interrupts)
  */
 
-#ifndef _SETUP_H_
-#define _SETUP_H_
+#ifndef SETUP_H
+#define SETUP_H
 
 #include <stm32f1xx_hal.h>
 

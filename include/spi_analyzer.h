@@ -8,12 +8,12 @@
  * SPI communication analyzer
  */
 
-#ifndef _SPI_ANALYZER_H_
-#define _SPI_ANALYZER_H_
+#ifndef SPI_ANALYZER_H
+#define SPI_ANALYZER_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include "timing_analyzer.h"
+#include <stddef.h>
+#include <stdint.h>
 
 class SpiAnalyzer
 {
@@ -24,7 +24,7 @@ public:
     void OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx);
 
 private:
-    void OnFifoRead(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx);
+    void OnFifoRead(const uint8_t *startTrx, const uint8_t *endTrx);
     void OnRegWrite(uint32_t time, uint8_t reg, uint8_t value);
     void OnOpModeChanged(uint32_t time, uint8_t value);
     void OnSymbTimeoutLsbChanged(uint8_t value);
