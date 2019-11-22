@@ -14,8 +14,6 @@
 #include <stdint.h>
 #include <stm32f1xx.h>
 
-#define TIMING_CORR 0.99996
-
 
 void ErrorHandler();
 

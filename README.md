@@ -24,14 +24,14 @@ The result is writting to the serial output, using 115,200 bps:
 
 - PA9: TX
 
-Additionally, a 1 kHz square wave is output to measure the accurracy of the probe clock. If the output signal deviates from 1 kHz, it can be corrected in software (line 21 in `main.cpp`).
+Additionally, a 1 kHz square wave is output to measure the accurracy of the probe clock.
 
 - PA1: 1 kHz reference clock
 
 
 ## Project
 
-The software project is created using STM32Cube HAL library and [PlatformIO](https://platformio.org/).
+The software project uses the STM32Cube HAL library and [PlatformIO](https://platformio.org/).
 
 
 ## Architecture

@@ -14,7 +14,7 @@
 #include <cmath>
 #include <cstdio>
 
-#define TIMESTAMP_PATTERN "%10lu: "
+#define TIMESTAMP_PATTERN "%7ld: "
 
 static char formatBuf[128];
 
@@ -42,7 +42,6 @@ void TimingAnalyzer::OnTxStart(uint32_t time)
         return;
     }
 
-    PrintTimestamp(time);
     Uart.Print("TX start\r\n");
     stage = LoraStageTransmitting;
     txStartTime = time;
@@ -56,7 +55,7 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
         return;
     }
 
-    PrintTimestamp(time);
+    PrintRelativeTimestamp(time - txEndTime);
     Uart.Print("RX start\r\n");
 
     if (stage == LoraStageBeforeRx1Window)
@@ -79,28 +78,34 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         return;
     }
 
-    PrintTimestamp(time);
-    Uart.Print("Done\r\n");
-
     if (stage == LoraStageTransmitting)
     {
+        PrintRelativeTimestamp(0);
+        Uart.Print("TX done\r\n");
+
         stage = LoraStageBeforeRx1Window;
         txEndTime = time;
 
-        uint32_t txExpected = CalculateAirTime(txPayloadLength);
-        uint32_t txEffective = txEndTime - txStartTime;
-        snprintf(formatBuf, sizeof(formatBuf), "TX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
-                 txExpected, txEffective);
+        int32_t airTime = CalculateAirTime(txPayloadLength);
+        uint32_t overallDuration = txEndTime - txStartTime;
+        snprintf(formatBuf, sizeof(formatBuf), "         Communicattion overhead: %ld us\r\n",
+                overallDuration - airTime);
         Uart.Print(formatBuf);
     }
     else if (stage == LoraStageInRx1Window)
     {
+        PrintRelativeTimestamp(time - txEndTime);
+        Uart.Print("RX 1 window: downlink done\r\n");
+
         rx1End = time;
         result = LoraResultDownlinkInRx1;
         stage = LoraStageWaitingForData;
     }
     else
     {
+        PrintRelativeTimestamp(time - txEndTime);
+        Uart.Print("RX 2 window: downlink done\r\n");
+
         rx2End = time;
         result = LoraResultDownlinkInRx2;
         stage = LoraStageWaitingForData;
@@ -131,28 +136,45 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         return;
     }
 
-    uint32_t txExpected = CalculateTimeoutTime();
-    uint32_t txEffective;
+    int32_t overallDuration;
 
-    PrintTimestamp(time);
+    PrintRelativeTimestamp(time - txEndTime);
     Uart.Print("Timeout\r\n");
 
     if (stage == LoraStageInRx1Window)
     {
         stage = LoraStageBeforeRx2Window;
         rx1End = time;
-        txEffective = time - rx1Start;
+        overallDuration = time - rx1Start;
+        AnalyzeTimeout(txEndTime + 1000000, time);
     }
     else
     {
         rx2End = time;
         result = LoraResultNoDownlink;
-        txEffective = time - rx2Start;
+        overallDuration = time - rx2Start;
         OnRxTxCompleted();
+        AnalyzeTimeout(txEndTime + 2000000, time);
     }
 
-    snprintf(formatBuf, sizeof(formatBuf), "RX timeout: expected: %lu us, effective: %lu us\r\n",
-             txExpected, txEffective);
+    int32_t timeoutDuration = CalculateTime(numTimeoutSymbols);
+    snprintf(formatBuf, sizeof(formatBuf), "         Communicattion overhead: %ld us\r\n",
+            overallDuration - timeoutDuration);
+    Uart.Print(formatBuf);
+}
+
+void TimingAnalyzer::AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEndTime)
+{
+    // To synchronize the receiver needs 4 preamble symbols in practice.
+    // So in optimum receive window the last 4 preamble symbols are in 
+    // the middle of the window.
+    int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
+    int32_t optimumMiddleTime = expectedStartTime + CalculateTime(preambleLength - 2);
+    int32_t effectiveMiddle = windowEndTime - timeoutLength / 2;
+    int32_t difference = effectiveMiddle - optimumMiddleTime;
+
+    snprintf(formatBuf, sizeof(formatBuf), "         Correction for optimum RX window: %ld us (timeout: %ld us)\r\n",
+            difference, timeoutLength);
     Uart.Print(formatBuf);
 }
 
@@ -162,9 +184,8 @@ void TimingAnalyzer::OnRxTxCompleted()
     result = LoraResultNoDownlink;
 }
 
-void TimingAnalyzer::PrintTimestamp(uint32_t timestamp)
+void TimingAnalyzer::PrintRelativeTimestamp(int32_t timestamp)
 {
-    timestamp = static_cast<uint32_t>(lround(timestamp * TIMING_CORR));
     char buf[sizeof(TIMESTAMP_PATTERN) + 7];
     snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
     Uart.Print(buf);
@@ -179,24 +200,24 @@ void TimingAnalyzer::OutOfSync(const char *stage)
     ResetStage();
 }
 
-uint32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
+int32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
 {
-    uint32_t symbolDuration = (1U << spreadingFactor) * 1000000 / bandwidth;
-    uint32_t preambleDuration = 12 * symbolDuration + symbolDuration / 4;
+    int32_t symbolDuration = (1U << spreadingFactor) * 1000000 / (int32_t)bandwidth;
+    int32_t preambleDuration = (preambleLength + 4) * symbolDuration + symbolDuration / 4;
 
-    uint8_t div = 4 * (spreadingFactor - 2 * lowDataRateOptimization);
+    int8_t div = 4 * (spreadingFactor - 2 * lowDataRateOptimization);
     int32_t numPayloadSymbols = (8 * payloadLength - 4 * spreadingFactor + 44 - 20 * implicitHeader + div - 1) / div;
     numPayloadSymbols *= codingRate;
     if (numPayloadSymbols < 0)
         numPayloadSymbols = 0;
     numPayloadSymbols += 8;
-    uint32_t payloadDuration = numPayloadSymbols * symbolDuration;
+    int32_t payloadDuration = numPayloadSymbols * symbolDuration;
 
     return preambleDuration + payloadDuration;
 }
 
-uint32_t TimingAnalyzer::CalculateTimeoutTime()
+int32_t TimingAnalyzer::CalculateTime(int numSymbols)
 {
-    uint32_t symbolDuration = (1U << spreadingFactor) * 1000000 / bandwidth;
-    return symbolDuration * numTimeoutSymbols;
+    int32_t symbolDuration = (1U << spreadingFactor) * 1000000 / (int32_t)bandwidth;
+    return symbolDuration * numSymbols;
 }

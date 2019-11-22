@@ -28,6 +28,7 @@ const uint32_t BANDWIDTH_TABLE[] = {
 
 void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *endTrx)
 {
+#if SPI_DEBUG == 1
     if (endTrx > startTrx)
     {
         Uart.PrintHex(startTrx, endTrx - startTrx, true);
@@ -37,6 +38,7 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
         Uart.PrintHex(startTrx, circularBufferEnd - startTrx, false);
         Uart.PrintHex(circularBufferStart, endTrx - circularBufferStart, true);
     }
+#endif
 
     const uint8_t *p = startTrx;
     uint8_t reg = *p;
