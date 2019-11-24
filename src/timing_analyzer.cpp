@@ -42,7 +42,7 @@ void TimingAnalyzer::OnTxStart(uint32_t time)
         return;
     }
 
-    Uart.Print("TX start\r\n");
+    Uart.Print("---------\r\n");
     stage = LoraStageTransmitting;
     txStartTime = time;
 }
@@ -55,9 +55,6 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
         return;
     }
 
-    PrintRelativeTimestamp(time - txEndTime);
-    Uart.Print("RX start\r\n");
-
     if (stage == LoraStageBeforeRx1Window)
     {
         stage = LoraStageInRx1Window;
@@ -68,6 +65,9 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
         stage = LoraStageInRx2Window;
         rx2Start = time;
     }
+
+    PrintRelativeTimestamp(time - txEndTime);
+    Uart.Print(stage == LoraStageInRx1Window ? "RX1 start\r\n" : "RX2 start\r\n");
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
@@ -80,35 +80,33 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 
     if (stage == LoraStageTransmitting)
     {
-        PrintRelativeTimestamp(0);
-        Uart.Print("TX done\r\n");
-
         stage = LoraStageBeforeRx1Window;
         txEndTime = time;
 
-        int32_t airTime = CalculateAirTime(txPayloadLength);
-        uint32_t overallDuration = txEndTime - txStartTime;
-        snprintf(formatBuf, sizeof(formatBuf), "         Communicattion overhead: %ld us\r\n",
-                overallDuration - airTime);
-        Uart.Print(formatBuf);
+        PrintRelativeTimestamp(txStartTime - txEndTime);
+        Uart.Print("TX start\r\n");
+        PrintRelativeTimestamp(0);
+        Uart.Print("TX done\r\n");
+
+        PrintParameters(txEndTime - txStartTime, txPayloadLength);
     }
     else if (stage == LoraStageInRx1Window)
     {
-        PrintRelativeTimestamp(time - txEndTime);
-        Uart.Print("RX 1 window: downlink done\r\n");
-
         rx1End = time;
         result = LoraResultDownlinkInRx1;
         stage = LoraStageWaitingForData;
+
+        PrintRelativeTimestamp(rx1End - txEndTime);
+        Uart.Print("RX1: downlink packet received\r\n");
     }
     else
     {
-        PrintRelativeTimestamp(time - txEndTime);
-        Uart.Print("RX 2 window: downlink done\r\n");
-
         rx2End = time;
         result = LoraResultDownlinkInRx2;
         stage = LoraStageWaitingForData;
+
+        PrintRelativeTimestamp(rx2End - txEndTime);
+        Uart.Print("RX2: downlink packet received\r\n");
     }
 }
 
@@ -119,11 +117,8 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
         OutOfSync("reading FIFO");
         return;
     }
-    uint32_t rxExpected = CalculateAirTime(payloadLength);
-    uint32_t rxEffective = result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start;
-    snprintf(formatBuf, sizeof(formatBuf), "RX: airtime: %lu us (calculated), overall duration: %lu us\r\n",
-             rxExpected, rxEffective);
-    Uart.Print(formatBuf);
+
+    PrintParameters(result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start, payloadLength);
 
     OnRxTxCompleted();
 }
@@ -136,45 +131,56 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         return;
     }
 
-    int32_t overallDuration;
-
     PrintRelativeTimestamp(time - txEndTime);
-    Uart.Print("Timeout\r\n");
+    Uart.Print(stage == LoraStageInRx1Window ? "RX1 timeout\r\n" : "RX2 timeout\r\n");
 
     if (stage == LoraStageInRx1Window)
     {
         stage = LoraStageBeforeRx2Window;
         rx1End = time;
-        overallDuration = time - rx1Start;
-        AnalyzeTimeout(txEndTime + 1000000, time);
+        AnalyzeTimeout(txEndTime + 1000000, time, rx1End - rx1Start);
     }
     else
     {
         rx2End = time;
         result = LoraResultNoDownlink;
-        overallDuration = time - rx2Start;
+        AnalyzeTimeout(txEndTime + 2000000, time, rx2End - rx2Start);
         OnRxTxCompleted();
-        AnalyzeTimeout(txEndTime + 2000000, time);
     }
+}
 
-    int32_t timeoutDuration = CalculateTime(numTimeoutSymbols);
-    snprintf(formatBuf, sizeof(formatBuf), "         Communicattion overhead: %ld us\r\n",
-            overallDuration - timeoutDuration);
+void TimingAnalyzer::AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEndTime, int32_t duration)
+{
+    // The receiver listens for a downlink packet for a given time (timeout window).
+    // If a packet preamble is detected during that time, it continues to recieve
+    // the packet. If not, it signals a timeout.
+    // The optimal timeout window is positioned such that the middle of the window
+    // aligns with the middle of the expected preamble. That way it is least senstive
+    // to time diference in both directions.
+    int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
+    int32_t optimumEndTime = expectedStartTime + CalculateTime(preambleLength) / 2 + timeoutLength;
+    int32_t difference = windowEndTime - optimumEndTime;
+
+    snprintf(formatBuf, sizeof(formatBuf),
+            "         SF%d, %lu Hz, airtime = %ld, ramp-up = %ld\r\n",
+            spreadingFactor, bandwidth, timeoutLength, duration - timeoutLength);
+    Uart.Print(formatBuf);
+
+    snprintf(formatBuf, sizeof(formatBuf),
+            "         Correction for optimum RX window: %ld us\r\n",
+            difference);
     Uart.Print(formatBuf);
 }
 
-void TimingAnalyzer::AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEndTime)
-{
-    // To synchronize the receiver needs 4 preamble symbols in practice.
-    // So in optimum receive window the last 4 preamble symbols are in 
-    // the middle of the window.
-    int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
-    int32_t optimumMiddleTime = expectedStartTime + CalculateTime(preambleLength - 2);
-    int32_t effectiveMiddle = windowEndTime - timeoutLength / 2;
-    int32_t difference = effectiveMiddle - optimumMiddleTime;
 
-    snprintf(formatBuf, sizeof(formatBuf), "         Correction for optimum RX window: %ld us (timeout: %ld us)\r\n",
-            difference, timeoutLength);
+void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
+{
+    int32_t airTime = CalculateAirTime(payloadLength);
+    int32_t rampupTime = duration - airTime;
+
+    snprintf(formatBuf, sizeof(formatBuf),
+            "         SF%d, %lu Hz, payload = %d bytes, airtime = %ld, ramp-up = %ld\r\n",
+            spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
     Uart.Print(formatBuf);
 }
 

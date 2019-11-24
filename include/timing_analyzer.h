@@ -56,11 +56,12 @@ public:
 private:
     void ResetStage();
     void OnRxTxCompleted();
+    void AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEndTime, int32_t duration);
     static void PrintRelativeTimestamp(int32_t timestamp);
+    void PrintParameters(int32_t duration, int payloadLength);
     void OutOfSync(const char* stage);
     int32_t CalculateAirTime(uint8_t payloadLength);
     int32_t CalculateTime(int numSymbols);
-    void AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEndTime);
 
     LoraTxRxStage stage;
     LoraTxRxResult result;
