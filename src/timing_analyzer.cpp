@@ -115,7 +115,10 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
         return;
     }
 
-    PrintParameters(result == LoraResultDownlinkInRx1 ? rx1End - rx1Start : rx2End - rx2Start, payloadLength);
+    if (result == LoraResultDownlinkInRx1)
+        PrintRxAnalysis(1000000, rx1Start - txEndTime, rx1End - txEndTime, payloadLength);
+    else
+        PrintRxAnalysis(2000000, rx2Start - txEndTime, rx2End - txEndTime, payloadLength);
 
     OnRxTxCompleted();
 }
@@ -135,34 +138,47 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     {
         stage = LoraStageBeforeRx2Window;
         rx1End = time;
-        AnalyzeTimeout(1000000, rx1Start - txEndTime, rx1End - txEndTime);
+        PrintTimeoutAnalysis(1000000, rx1Start - txEndTime, rx1End - txEndTime);
     }
     else
     {
         rx2End = time;
         result = LoraResultNoDownlink;
-        AnalyzeTimeout(2000000, rx2Start - txEndTime, rx2End - txEndTime);
+        PrintTimeoutAnalysis(2000000, rx2Start - txEndTime, rx2End - txEndTime);
         OnRxTxCompleted();
     }
 }
 
-void TimingAnalyzer::AnalyzeTimeout(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime)
+void TimingAnalyzer::PrintRxAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
+{
+    // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
+    int32_t airTime = CalculateAirTime(payloadLength - 2);
+
+    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
+            spreadingFactor, bandwidth, payloadLength, airTime);
+
+    int32_t calculatedStart = windowEndTime - airTime;
+    Uart.Printf("         Start of preamble (calculated): %ld\r\n", calculatedStart);
+}
+
+void TimingAnalyzer::PrintTimeoutAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime)
 {
     // The receiver listens for a downlink packet for a given time (timeout window).
     // If a packet preamble is detected during that time, it continues to recieve
-    // the packet. If not, it signals a timeout.
+    // the packet. If not, it signals a timeout at the end of the window.
     // The optimal timeout window is positioned such that the middle of the window
-    // aligns with the middle of the expected preamble. That way it is least senstive
-    // to time diference in both directions.
+    // aligns with the middle of the expected preamble. That way the margin for timing
+    // errors is the same at the start and the end of the window.
     int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
-    int32_t optimumEndTime = expectedStartTime + (CalculateTime(preambleLength) + timeoutLength) / 2;
     int32_t ramupDuration = windowEndTime - windowStartTime - timeoutLength;
-    int32_t corr = windowEndTime - optimumEndTime;
     int32_t marginStart = expectedStartTime + CalculateTime(preambleLength - 5) - (windowStartTime + ramupDuration);
     int32_t marginEnd = windowEndTime - (expectedStartTime + CalculateTime(5));
 
     Uart.Printf("         SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, timeoutLength, ramupDuration);
+
+    int32_t optimumEndTime = expectedStartTime + (CalculateTime(preambleLength) + timeoutLength) / 2;
+    int32_t corr = windowEndTime - optimumEndTime;
 
     Uart.Printf("         Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
     Uart.Printf("         Correction for optimum RX window: %ldus\r\n", corr);
@@ -174,7 +190,7 @@ void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
     int32_t airTime = CalculateAirTime(payloadLength);
     int32_t rampupTime = duration - airTime;
 
-    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ld,us ramp-up = %ldus\r\n",
+    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
 }
 

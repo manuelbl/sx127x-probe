@@ -56,9 +56,12 @@ public:
 private:
     void ResetStage();
     void OnRxTxCompleted();
-    void AnalyzeTimeout(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime);
-    static void PrintRelativeTimestamp(int32_t timestamp);
+
+    void PrintRxAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime, int payloadLength);
+    void PrintTimeoutAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime);
     void PrintParameters(int32_t duration, int payloadLength);
+    static void PrintRelativeTimestamp(int32_t timestamp);
+
     void OutOfSync(const char* stage);
     int32_t CalculateAirTime(uint8_t payloadLength);
     int32_t CalculateTime(int numSymbols);
