@@ -12,11 +12,8 @@
 #include "main.h"
 #include "uart.h"
 #include <cmath>
-#include <cstdio>
 
 #define TIMESTAMP_PATTERN "%7ld: "
-
-static char formatBuf[128];
 
 TimingAnalyzer::TimingAnalyzer()
     : stage(LoraStageIdle), result(LoraResultNoDownlink),
@@ -161,15 +158,11 @@ void TimingAnalyzer::AnalyzeTimeout(int32_t expectedStartTime, int32_t windowEnd
     int32_t optimumEndTime = expectedStartTime + CalculateTime(preambleLength) / 2 + timeoutLength;
     int32_t difference = windowEndTime - optimumEndTime;
 
-    snprintf(formatBuf, sizeof(formatBuf),
-            "         SF%d, %lu Hz, airtime = %ld, ramp-up = %ld\r\n",
+    Uart.Printf("         SF%d, %lu Hz, airtime = %ld, ramp-up = %ld\r\n",
             spreadingFactor, bandwidth, timeoutLength, duration - timeoutLength);
-    Uart.Print(formatBuf);
 
-    snprintf(formatBuf, sizeof(formatBuf),
-            "         Correction for optimum RX window: %ld us\r\n",
+    Uart.Printf("         Correction for optimum RX window: %ld us\r\n",
             difference);
-    Uart.Print(formatBuf);
 }
 
 
@@ -178,10 +171,8 @@ void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
     int32_t airTime = CalculateAirTime(payloadLength);
     int32_t rampupTime = duration - airTime;
 
-    snprintf(formatBuf, sizeof(formatBuf),
-            "         SF%d, %lu Hz, payload = %d bytes, airtime = %ld, ramp-up = %ld\r\n",
+    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ld, ramp-up = %ld\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
-    Uart.Print(formatBuf);
 }
 
 void TimingAnalyzer::OnRxTxCompleted()
@@ -192,9 +183,7 @@ void TimingAnalyzer::OnRxTxCompleted()
 
 void TimingAnalyzer::PrintRelativeTimestamp(int32_t timestamp)
 {
-    char buf[sizeof(TIMESTAMP_PATTERN) + 7];
-    snprintf(buf, sizeof(buf), TIMESTAMP_PATTERN, timestamp);
-    Uart.Print(buf);
+    Uart.Printf(TIMESTAMP_PATTERN, timestamp);
 }
 
 void TimingAnalyzer::OutOfSync(const char *stage)

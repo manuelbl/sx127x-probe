@@ -9,6 +9,7 @@
  */
 #include "uart.h"
 #include "main.h"
+#include <cstdarg>
 #include <cstring>
 #include <stm32f1xx_hal.h>
 
@@ -48,8 +49,7 @@ static volatile int txChunkBreak[TX_QUEUE_LEN];
 static volatile int txQueueHead = 0;
 static volatile int txQueueTail = 0;
 
-#define HEX_BUF_LEN 25
-static char hexBuf[HEX_BUF_LEN];
+static char formatBuf[128];
 
 static const char *HEX_DIGITS = "0123456789ABCDEF";
 
@@ -58,12 +58,21 @@ void UartImpl::Print(const char *str)
     Write((const uint8_t *)str, strlen(str));
 }
 
+void UartImpl::Printf(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(formatBuf, sizeof(formatBuf), fmt, args);
+    va_end(args);
+    Print(formatBuf);
+}
+
 void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 {
     while (len > 0)
     {
-        char *p = hexBuf;
-        char *end = hexBuf + HEX_BUF_LEN;
+        char *p = formatBuf;
+        char *end = formatBuf + sizeof(formatBuf);
 
         while (len > 0 && p + 4 <= end)
         {
@@ -80,7 +89,7 @@ void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
             *p++ = '\n';
         }
 
-        Write((const uint8_t *)hexBuf, p - hexBuf);
+        Write((const uint8_t *)formatBuf, p - formatBuf);
     }
 }
 

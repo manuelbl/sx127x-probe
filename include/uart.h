@@ -21,6 +21,7 @@ public:
     void Init();
     void Write(const uint8_t *data, size_t len);
     void Print(const char *str);
+    void Printf(const char *fmt, ...);
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
     static void TransmissionCompleted();
