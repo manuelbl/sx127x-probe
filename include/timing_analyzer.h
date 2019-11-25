@@ -57,8 +57,8 @@ private:
     void ResetStage();
     void OnRxTxCompleted();
 
-    void PrintRxAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime, int payloadLength);
-    void PrintTimeoutAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime);
+    void PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength);
+    void PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime);
     void PrintParameters(int32_t duration, int payloadLength);
     static void PrintRelativeTimestamp(int32_t timestamp);
 

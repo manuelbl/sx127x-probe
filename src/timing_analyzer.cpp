@@ -116,9 +116,9 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
     }
 
     if (result == LoraResultDownlinkInRx1)
-        PrintRxAnalysis(1000000, rx1Start - txEndTime, rx1End - txEndTime, payloadLength);
+        PrintRxAnalysis(rx1Start - txEndTime, rx1End - txEndTime, payloadLength);
     else
-        PrintRxAnalysis(2000000, rx2Start - txEndTime, rx2End - txEndTime, payloadLength);
+        PrintRxAnalysis(rx2Start - txEndTime, rx2End - txEndTime, payloadLength);
 
     OnRxTxCompleted();
 }
@@ -138,18 +138,18 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     {
         stage = LoraStageBeforeRx2Window;
         rx1End = time;
-        PrintTimeoutAnalysis(1000000, rx1Start - txEndTime, rx1End - txEndTime);
+        PrintTimeoutAnalysis(rx1Start - txEndTime, rx1End - txEndTime);
     }
     else
     {
         rx2End = time;
         result = LoraResultNoDownlink;
-        PrintTimeoutAnalysis(2000000, rx2Start - txEndTime, rx2End - txEndTime);
+        PrintTimeoutAnalysis(rx2Start - txEndTime, rx2End - txEndTime);
         OnRxTxCompleted();
     }
 }
 
-void TimingAnalyzer::PrintRxAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
+void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
 {
     // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
     int32_t airTime = CalculateAirTime(payloadLength - 2);
@@ -161,8 +161,11 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t expectedStartTime, int32_t windowSt
     Uart.Printf("         Start of preamble (calculated): %ld\r\n", calculatedStart);
 }
 
-void TimingAnalyzer::PrintTimeoutAnalysis(int32_t expectedStartTime, int32_t windowStartTime, int32_t windowEndTime)
+void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)
 {
+    // Round to nearest second
+    int32_t expectedStartTime = (windowStartTime + 500000) / 1000000 * 1000000;
+
     // The receiver listens for a downlink packet for a given time (timeout window).
     // If a packet preamble is detected during that time, it continues to recieve
     // the packet. If not, it signals a timeout at the end of the window.

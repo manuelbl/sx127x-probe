@@ -52,7 +52,7 @@ int main()
 {
     setup();
 
-    Uart.Print("Start\r\n");
+    Uart.Print("SX127x Probe\r\n");
 
     // Receive SPI data into a circuar buffer indefinitely
     HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
