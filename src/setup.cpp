@@ -101,8 +101,16 @@ static void SPI1_Init()
     hspi1.Init.Mode = SPI_MODE_SLAVE;
     hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
     hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+#if SPI_MODE == 0 || SPI_MODE == 1
     hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+#else
+    hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+#endif
+#if SPI_MODE == 0 || SPI_MODE == 2
     hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+#else
+    hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+#endif
     hspi1.Init.NSS = SPI_NSS_HARD_INPUT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
     hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;

@@ -18,6 +18,10 @@
 #define DIO1_PIN GPIO_PIN_1
 #define DIO1_GPIO_PORT GPIOB
 
+#if !defined(SPI_MODE)
+#define SPI_MODE 0
+#endif
+
 extern SPI_HandleTypeDef hspi1;
 extern DMA_HandleTypeDef hdma_spi1_rx;
 
