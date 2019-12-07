@@ -13,10 +13,22 @@
 #include <cstring>
 #include <stm32f1xx_hal.h>
 
+#define UART_RX_PIN GPIO_PIN_3
+#define UART_TX_PIN GPIO_PIN_2
+#define UART_PORT GPIOA
+#define UART_Instance USART2
+#define UART_IRQn USART2_IRQn
+#define UART_IRQHandler USART2_IRQHandler
+
+#define DMA_UART_Channel DMA1_Channel7
+#define DMA_UART_IRQn DMA1_Channel7_IRQn
+#define DMA_UART_IRQHandler DMA1_Channel7_IRQHandler
+
+
 UartImpl Uart;
 
-static UART_HandleTypeDef huart1;
-static DMA_HandleTypeDef hdma_usart1_tx;
+static UART_HandleTypeDef uart;
+static DMA_HandleTypeDef hdma_uart_tx;
 
 // Buffer for data to be transmitted via UART
 //  *  0 <= head < buf_len
@@ -178,7 +190,7 @@ void UartImpl::StartTransmit()
 {
     InterruptGuard guard;
 
-    if (huart1.gState != HAL_UART_STATE_READY || txQueueTail == txQueueHead)
+    if (uart.gState != HAL_UART_STATE_READY || txQueueTail == txQueueHead)
         return; // UART busy or queue empty
 
     int queueTail = txQueueTail;
@@ -197,7 +209,7 @@ void UartImpl::StartTransmit()
         ErrorHandler();
     }
 
-    HAL_UART_Transmit_DMA(&huart1, txBuf + startPos, endPos - startPos);
+    HAL_UART_Transmit_DMA(&uart, txBuf + startPos, endPos - startPos);
 }
 
 void UartImpl::TransmissionCompleted()
@@ -227,19 +239,19 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 void UartImpl::Init()
 {
-    huart1.Instance = USART1;
-    huart1.Init.BaudRate = 115200;
-    huart1.Init.WordLength = UART_WORDLENGTH_8B;
-    huart1.Init.StopBits = UART_STOPBITS_1;
-    huart1.Init.Parity = UART_PARITY_NONE;
-    huart1.Init.Mode = UART_MODE_TX;
-    huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-    HAL_UART_Init(&huart1);
+    uart.Instance = UART_Instance;
+    uart.Init.BaudRate = 115200;
+    uart.Init.WordLength = UART_WORDLENGTH_8B;
+    uart.Init.StopBits = UART_STOPBITS_1;
+    uart.Init.Parity = UART_PARITY_NONE;
+    uart.Init.Mode = UART_MODE_TX;
+    uart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    uart.Init.OverSampling = UART_OVERSAMPLING_16;
+    HAL_UART_Init(&uart);
 
-    // DMA1_Channel4_IRQn interrupt configuration
-    HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+    // DMA UART IRQn interrupt configuration
+    HAL_NVIC_SetPriority(DMA_UART_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA_UART_IRQn);
 
     txChunkBreak[txQueueHead] = txBufHead;
 }
@@ -247,70 +259,70 @@ void UartImpl::Init()
 extern "C" void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    if (huart->Instance == USART1)
+    if (huart->Instance == UART_Instance)
     {
         // Peripheral clock enable
-        __HAL_RCC_USART1_CLK_ENABLE();
+        __HAL_RCC_USART2_CLK_ENABLE();
 
         __HAL_RCC_GPIOA_CLK_ENABLE();
-        // USART1 GPIO Configuration
-        // PA9     ------> USART1_TX
-        // PA10     ------> USART1_RX
-        GPIO_InitStruct.Pin = GPIO_PIN_9;
+        // USART2 GPIO Configuration
+        // PA2     ------> USART2_TX
+        // PA3     ------> USART2_RX
+        GPIO_InitStruct.Pin = UART_TX_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        HAL_GPIO_Init(UART_PORT, &GPIO_InitStruct);
 
-        GPIO_InitStruct.Pin = GPIO_PIN_10;
+        GPIO_InitStruct.Pin = UART_RX_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        HAL_GPIO_Init(UART_PORT, &GPIO_InitStruct);
 
-        // USART1 DMA Init
-        // USART1_TX Init
-        hdma_usart1_tx.Instance = DMA1_Channel4;
-        hdma_usart1_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-        hdma_usart1_tx.Init.PeriphInc = DMA_PINC_DISABLE;
-        hdma_usart1_tx.Init.MemInc = DMA_MINC_ENABLE;
-        hdma_usart1_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-        hdma_usart1_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-        hdma_usart1_tx.Init.Mode = DMA_NORMAL;
-        hdma_usart1_tx.Init.Priority = DMA_PRIORITY_LOW;
-        HAL_DMA_Init(&hdma_usart1_tx);
+        // USART2 DMA Init
+        // USART2_TX Init
+        hdma_uart_tx.Instance = DMA_UART_Channel;
+        hdma_uart_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+        hdma_uart_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+        hdma_uart_tx.Init.MemInc = DMA_MINC_ENABLE;
+        hdma_uart_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+        hdma_uart_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+        hdma_uart_tx.Init.Mode = DMA_NORMAL;
+        hdma_uart_tx.Init.Priority = DMA_PRIORITY_LOW;
+        HAL_DMA_Init(&hdma_uart_tx);
 
-        __HAL_LINKDMA(huart, hdmatx, hdma_usart1_tx);
+        __HAL_LINKDMA(huart, hdmatx, hdma_uart_tx);
 
         // USART interrupt is needed for completion callback
-        HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
-        HAL_NVIC_EnableIRQ(USART1_IRQn);
+        HAL_NVIC_SetPriority(UART_IRQn, 0, 0);
+        HAL_NVIC_EnableIRQ(UART_IRQn);
     }
 }
 
 extern "C" void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART1)
+    if (huart->Instance == UART_Instance)
     {
         // Peripheral clock disable
-        __HAL_RCC_USART1_CLK_DISABLE();
+        __HAL_RCC_USART2_CLK_DISABLE();
 
-        // USART1 GPIO Configuration
-        // PA9     ------> USART1_TX
-        // PA10     ------> USART1_RX
-        HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9 | GPIO_PIN_10);
+        // USART2 GPIO Configuration
+        // PA2     ------> USART2_TX
+        // PA3     ------> USART3_RX
+        HAL_GPIO_DeInit(UART_PORT, UART_TX_PIN | UART_RX_PIN);
 
-        // USART1 DMA DeInit
+        // USART2 DMA DeInit
         HAL_DMA_DeInit(huart->hdmatx);
 
-        HAL_NVIC_DisableIRQ(USART1_IRQn);
+        HAL_NVIC_DisableIRQ(UART_IRQn);
     }
 }
 
-extern "C" void DMA1_Channel4_IRQHandler(void)
+extern "C" void DMA_UART_IRQHandler(void)
 {
-    HAL_DMA_IRQHandler(&hdma_usart1_tx);
+    HAL_DMA_IRQHandler(&hdma_uart_tx);
 }
 
-extern "C" void USART1_IRQHandler(void)
+extern "C" void UART_IRQHandler(void)
 {
-    HAL_UART_IRQHandler(&huart1);
+    HAL_UART_IRQHandler(&uart);
 }

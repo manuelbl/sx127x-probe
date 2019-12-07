@@ -12,14 +12,14 @@
 #include "main.h"
 #include "uart.h"
 
-SPI_HandleTypeDef hspi1;
-DMA_HandleTypeDef hdma_spi1_rx;
+SPI_HandleTypeDef hspi;
+DMA_HandleTypeDef hdma_spi_rx;
 TIM_HandleTypeDef htim2;
 
 void SystemClock_Config();
 static void GPIO_Init();
 static void DMA_Init();
-static void SPI1_Init();
+static void SPI2_Init();
 static void TIM2_Init();
 
 void setup()
@@ -30,7 +30,7 @@ void setup()
 
     GPIO_Init();
     DMA_Init();
-    SPI1_Init();
+    SPI2_Init();
     TIM2_Init();
     Uart.Init();
 }
@@ -88,91 +88,91 @@ static void GPIO_Init()
     GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
     HAL_GPIO_Init(DIO0_GPIO_PORT, &GPIO_InitStruct);
 
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+    HAL_NVIC_SetPriority(EXTI_DIO0_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI_DIO0_IRQn);
 
-    HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+    HAL_NVIC_SetPriority(EXTI_DIO1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI_DIO1_IRQn);
 }
 
-static void SPI1_Init()
+static void SPI2_Init()
 {
-    hspi1.Instance = SPI1;
-    hspi1.Init.Mode = SPI_MODE_SLAVE;
-    hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
-    hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+    hspi.Instance = SPI2;
+    hspi.Init.Mode = SPI_MODE_SLAVE;
+    hspi.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
+    hspi.Init.DataSize = SPI_DATASIZE_8BIT;
 #if SPI_MODE == 0 || SPI_MODE == 1
-    hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+    hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
 #else
-    hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+    hspi.Init.CLKPolarity = SPI_POLARITY_HIGH;
 #endif
 #if SPI_MODE == 0 || SPI_MODE == 2
-    hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+    hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
 #else
-    hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+    hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
 #endif
-    hspi1.Init.NSS = SPI_NSS_HARD_INPUT;
-    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-    hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-    hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-    hspi1.Init.CRCPolynomial = 10;
-    HAL_SPI_Init(&hspi1);
+    hspi.Init.NSS = SPI_NSS_HARD_INPUT;
+    hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+    hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    hspi.Init.CRCPolynomial = 10;
+    HAL_SPI_Init(&hspi);
 
-    HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+    HAL_NVIC_SetPriority(EXTI_NSS_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI_NSS_IRQn);
 }
 
 extern "C" void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    if (hspi->Instance == SPI1)
+    if (hspi->Instance == SPI_INSTANCE)
     {
         // Peripheral clock enable
-        __HAL_RCC_SPI1_CLK_ENABLE();
+        __HAL_RCC_SPI2_CLK_ENABLE();
 
-        // SPI1 GPIO Configuration
-        // PA4     ------> SPI1_NSS
-        // PA5     ------> SPI1_SCK
-        // PA7     ------> SPI1_MOSI
-        GPIO_InitStruct.Pin = GPIO_PIN_4;
+        // SPI2 GPIO Configuration
+        // PB12     ------> SPI2_NSS
+        // PB13     ------> SPI2_SCK
+        // PB15     ------> SPI2_MOSI
+        GPIO_InitStruct.Pin = SPI_NSS_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
         GPIO_InitStruct.Pull = GPIO_PULLUP;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        HAL_GPIO_Init(SPI_PORT, &GPIO_InitStruct);
 
-        GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_7;
+        GPIO_InitStruct.Pin = SPI_SCK_PIN | SPI_MOSI_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        HAL_GPIO_Init(SPI_PORT, &GPIO_InitStruct);
 
         // SPI1 DMA Init
         // SPI1_RX Init
-        hdma_spi1_rx.Instance = DMA1_Channel2;
-        hdma_spi1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-        hdma_spi1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
-        hdma_spi1_rx.Init.MemInc = DMA_MINC_ENABLE;
-        hdma_spi1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-        hdma_spi1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-        hdma_spi1_rx.Init.Mode = DMA_CIRCULAR;
-        hdma_spi1_rx.Init.Priority = DMA_PRIORITY_LOW;
-        HAL_DMA_Init(&hdma_spi1_rx);
+        hdma_spi_rx.Instance = DMA_SPI_Instance;
+        hdma_spi_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+        hdma_spi_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+        hdma_spi_rx.Init.MemInc = DMA_MINC_ENABLE;
+        hdma_spi_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+        hdma_spi_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+        hdma_spi_rx.Init.Mode = DMA_CIRCULAR;
+        hdma_spi_rx.Init.Priority = DMA_PRIORITY_LOW;
+        HAL_DMA_Init(&hdma_spi_rx);
 
-        __HAL_LINKDMA(hspi, hdmarx, hdma_spi1_rx);
+        __HAL_LINKDMA(hspi, hdmarx, hdma_spi_rx);
     }
 }
 
 extern "C" void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
 {
-    if (hspi->Instance == SPI1)
+    if (hspi->Instance == SPI_INSTANCE)
     {
         // Peripheral clock disable
-        __HAL_RCC_SPI1_CLK_DISABLE();
+        __HAL_RCC_SPI2_CLK_DISABLE();
 
-        // SPI1 GPIO Configuration
-        // PA4     ------> SPI1_NSS
-        // PA5     ------> SPI1_SCK
-        // PA7     ------> SPI1_MOSI
-        HAL_GPIO_DeInit(GPIOA, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_7);
+        // SPI2 GPIO Configuration
+        // PB12     ------> SPI2_NSS
+        // PB13     ------> SPI2_SCK
+        // PB15     ------> SPI2_MOSI
+        HAL_GPIO_DeInit(SPI_PORT, SPI_NSS_PIN | SPI_SCK_PIN | SPI_MOSI_PIN);
 
         // SPI1 DMA DeInit
         HAL_DMA_DeInit(hspi->hdmarx);
@@ -185,9 +185,9 @@ void DMA_Init()
     __HAL_RCC_DMA1_CLK_ENABLE();
 
     // DMA interrupt init
-    // DMA1_Channel2_IRQn interrupt configuration
-    HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+    // DMA channel IRQ interrupt configuration
+    HAL_NVIC_SetPriority(DMA_SPI_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA_SPI_IRQn);
 }
 
 void TIM2_Init()
@@ -294,13 +294,13 @@ extern "C" void PendSV_Handler()
 {
 }
 
-extern "C" void EXTI4_IRQHandler(void)
+extern "C" void EXTI_NSS_IRQHandler(void)
 {
     SpiTrxCompleted();
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4);
+    HAL_GPIO_EXTI_IRQHandler(SPI_NSS_PIN);
 }
 
-extern "C" void DMA1_Channel2_IRQHandler(void)
+extern "C" void DMA_SPI_IRQHandler(void)
 {
-    HAL_DMA_IRQHandler(&hdma_spi1_rx);
+    HAL_DMA_IRQHandler(&hdma_spi_rx);
 }

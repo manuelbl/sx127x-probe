@@ -10,21 +10,23 @@ Software to monitor the communictaion with a Semtech SX127x chip to verify the f
 | SX127x     | Probe     |
 | ---------- | --------- |
 | GND        | GND       |
-| NSS / CS   | PA4       |
-| SCLK       | PA5       |
-| MOSI       | PA7       |
-| DIO0       | PB0       |
-| DIO1       | PB1       |
+| NSS / CS   | PB12      |
+| SCLK       | PB13      |
+| MOSI       | PB15      |
+| DIO0       | PB3       |
+| DIO1       | PB4       |
 
-With the exception of GND, all connections are configured as inputs with no pull up/down. So they can be connected in addition to the already existing connections between the SX127x chip and the MCU. They do not affect the SX127x/LoRa board.
+With the exception of GND, all connections are configured as inputs with no pull up/down and they are assigned to 5V tolerant pins.
+So they can be connected in addition to the already existing circuitry between the SX127x chip and the MCU.
+They do not affect the SX127x/LoRa board, and they work both 3.3V and 5V boards.
 
 ### Outputs
 
 The result is writting to the serial output, using 115,200 bps:
 
-- PA9: TX
+- PA2: TX
 
-Additionally, a 1 kHz square wave is output to measure the accurracy of the probe clock.
+Additionally, a 1 kHz square wave is output so you can measure the accurracy of the probe clock.
 
 - PA1: 1 kHz reference clock
 

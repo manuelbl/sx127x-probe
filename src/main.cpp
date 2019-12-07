@@ -55,7 +55,7 @@ int main()
     Uart.Print("SX127x Probe\r\n");
 
     // Receive SPI data into a circuar buffer indefinitely
-    HAL_SPI_Receive_DMA(&hspi1, spiDataBuf, SPI_DATA_BUF_LEN);
+    HAL_SPI_Receive_DMA(&hspi, spiDataBuf, SPI_DATA_BUF_LEN);
 
     while (true)
     {
@@ -127,7 +127,7 @@ void QueueEvent(EventType eventType, int spiPos)
 // Called when an SPI transaction has completed (NSS returns to HIGH)
 void SpiTrxCompleted()
 {
-    int pos = SPI_DATA_BUF_LEN - __HAL_DMA_GET_COUNTER(&hdma_spi1_rx);
+    int pos = SPI_DATA_BUF_LEN - __HAL_DMA_GET_COUNTER(&hdma_spi_rx);
     if (pos == SPI_DATA_BUF_LEN)
         pos = 0;
 
@@ -135,17 +135,17 @@ void SpiTrxCompleted()
 }
 
 // Called when the DIO0 signal goes high
-extern "C" void EXTI0_IRQHandler(void)
+extern "C" void EXTI_DIO0_IRQHandler(void)
 {
     QueueEvent(EventTypeDone, -1);
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+    HAL_GPIO_EXTI_IRQHandler(DIO0_PIN);
 }
 
 // Called when the DIO1 signal goes high
-extern "C" void EXTI1_IRQHandler(void)
+extern "C" void EXTI_DIO1_IRQHandler(void)
 {
     QueueEvent(EventTypeTimeout, -1);
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+    HAL_GPIO_EXTI_IRQHandler(DIO1_PIN);
 }
 
 void ErrorHandler()
