@@ -151,6 +151,9 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 
 void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
 {
+    windowStartTime = CorrectedTime(windowStartTime);
+    windowEndTime = CorrectedTime(windowEndTime);
+
     // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
     int32_t airTime = CalculateAirTime(payloadLength - 2);
 
@@ -163,6 +166,9 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
 
 void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)
 {
+    windowStartTime = CorrectedTime(windowStartTime);
+    windowEndTime = CorrectedTime(windowEndTime);
+
     // Round to nearest second
     int32_t expectedStartTime = (windowStartTime + 500000) / 1000000 * 1000000;
 
@@ -190,6 +196,7 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
 
 void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
 {
+    duration = CorrectedTime(duration);
     int32_t airTime = CalculateAirTime(payloadLength);
     int32_t rampupTime = duration - airTime;
 
@@ -205,7 +212,7 @@ void TimingAnalyzer::OnRxTxCompleted()
 
 void TimingAnalyzer::PrintRelativeTimestamp(int32_t timestamp)
 {
-    Uart.Printf(TIMESTAMP_PATTERN, timestamp);
+    Uart.Printf(TIMESTAMP_PATTERN, CorrectedTime(timestamp));
 }
 
 void TimingAnalyzer::OutOfSync(const char *stage)

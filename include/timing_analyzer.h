@@ -12,6 +12,12 @@
 #define TIMING_ANALYZER_H
 
 #include <stdint.h>
+#include <math.h>
+
+#if !defined(MEASURED_CLOCK)
+#define MEASURED_CLOCK 1
+#endif
+
 
 enum LoraTxRxStage
 {
@@ -57,6 +63,7 @@ private:
     void ResetStage();
     void OnRxTxCompleted();
 
+    static int32_t CorrectedTime(int32_t time) { return (int32_t) round(time * 1000.0 / MEASURED_CLOCK); }
     void PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength);
     void PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime);
     void PrintParameters(int32_t duration, int payloadLength);

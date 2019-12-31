@@ -58,6 +58,17 @@ There are two reason why they are not properly centered:
 2. The delay caused by the code run on the MCU, the SPI communication to change the *opmode* and the ramp-up of the transceiver might not have been fully accounted for. The delay is dependent of the type of MCU, the MCU's clock speed and the SPI speed.
 
 
+## Clock correction
+
+The analysis accuracy depends on the STM32's clock accuracy. If the clock is not exact but stable, it can compensated with a calibration. With a multimeter or frequency counter, the square wave on pin PA1 can be measured. Then the macro `MEASURED_CLOCK` is to to the measured value, the code is recompiled and uploaded.
+
+Example if a frequency of 999.31 Hz is measured:
+
+```
+build_flags = -D MEASURED_CLOCK=999.31
+```
+
+
 ## Project
 
 The software project uses the STM32Cube HAL library and [PlatformIO](https://platformio.org/).
