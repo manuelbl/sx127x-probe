@@ -64,7 +64,8 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
     }
 
     PrintRelativeTimestamp(time - txEndTime);
-    Uart.Print(stage == LoraStageInRx1Window ? "RX1 start\r\n" : "RX2 start\r\n");
+    Uart.Printf("RX%c start (mode %s)\r\n", stage == LoraStageInRx1Window ? '1' : '2',
+        longRangeMode == LongrangeModeLora ? "LoRa" : "FSK");
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
@@ -81,7 +82,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         txEndTime = time;
 
         PrintRelativeTimestamp(txStartTime - txEndTime);
-        Uart.Print("TX start\r\n");
+        Uart.Printf("TX start (mode %s)\r\n", longRangeMode == LongrangeModeLora ? "LoRa" : "FSK");
         PrintRelativeTimestamp(0);
         Uart.Print("TX done\r\n");
 

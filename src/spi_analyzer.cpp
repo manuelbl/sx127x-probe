@@ -119,6 +119,9 @@ void SpiAnalyzer::OnRegWrite(uint32_t time, uint8_t reg, uint8_t value)
 
 void SpiAnalyzer::OnOpModeChanged(uint32_t time, uint8_t value)
 {
+    LongRangeMode longRangeMode = (value & 0x80) != 0 ? LongrangeModeLora : LongrangeModeFSK;
+    timingAnalyzer.SetLongRangeMode(longRangeMode);
+
     uint8_t mode = value & 0x07U;
     if (mode == 0x03)
     {
@@ -150,10 +153,8 @@ void SpiAnalyzer::OnModemConfig1(uint8_t value)
 void SpiAnalyzer::OnModemConfig2(uint8_t value)
 {
     uint8_t sf = value >> 4U;
-    if (sf < 6 || sf > 12)
-        return;
-    
-    timingAnalyzer.SetSpreadingFactor(sf);
+    if (sf >= 6 && sf <= 12)
+        timingAnalyzer.SetSpreadingFactor(sf);
 
     timingAnalyzer.SetCrcOn((value >> 2U) & 0x01U);
 

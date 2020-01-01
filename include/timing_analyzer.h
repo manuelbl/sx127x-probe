@@ -37,6 +37,12 @@ enum LoraTxRxResult
     LoraResultDownlinkInRx2
 };
 
+enum LongRangeMode
+{
+    LongrangeModeFSK,
+    LongrangeModeLora
+};
+
 
 class TimingAnalyzer
 {
@@ -49,6 +55,7 @@ public:
     void OnTimeoutInterrupt(uint32_t time);
     void OnDataReceived(uint8_t rxPayloadLength);
 
+    void SetLongRangeMode(LongRangeMode mode) { this->longRangeMode = mode; }
     void SetRxSymbolTimeout(uint16_t numTimeoutSymbols) { this->numTimeoutSymbols = numTimeoutSymbols; }
     void SetBandwidth(uint32_t bandwidth) { this->bandwidth = bandwidth; }
     void SetCodingRate(uint8_t codingRate) { this->codingRate = codingRate; }
@@ -82,6 +89,7 @@ private:
     uint32_t rx2Start;
     uint32_t rx2End;
 
+    LongRangeMode longRangeMode;
     uint32_t bandwidth;
     uint16_t numTimeoutSymbols;
     uint8_t codingRate;
