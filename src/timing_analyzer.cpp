@@ -158,7 +158,7 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
 void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
 {
     // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
-    int32_t airTime = CalculateAirTime(payloadLength - 2);
+    int32_t airTime = PayloadAirTime(payloadLength - 2);
 
     Uart.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime);
@@ -167,7 +167,7 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
     Uart.Printf("          Start of preamble (calculated): %ld\r\n", calculatedStartTime);
 
     // Ramp-up time is not known but assumed to be 300us.
-    int32_t marginStart = calculatedStartTime + CalculateTime(preambleLength - 5) - windowStartTime - 300;
+    int32_t marginStart = calculatedStartTime + SymbolDuration(preambleLength - 5) - windowStartTime - 300;
     Uart.Printf("          Margin: start = %ldus\r\n", marginStart);
 }
 
@@ -182,15 +182,15 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
     // The optimal timeout window is positioned such that the middle of the window
     // aligns with the middle of the expected preamble. That way the margin for timing
     // errors is the same at the start and the end of the window.
-    int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
+    int32_t timeoutLength = SymbolDuration(numTimeoutSymbols);
     int32_t ramupDuration = windowEndTime - windowStartTime - timeoutLength;
-    int32_t marginStart = expectedStartTime + CalculateTime(preambleLength - 5) - windowStartTime - ramupDuration;
-    int32_t marginEnd = windowEndTime - (expectedStartTime + CalculateTime(5));
+    int32_t marginStart = expectedStartTime + SymbolDuration(preambleLength - 5) - windowStartTime - ramupDuration;
+    int32_t marginEnd = windowEndTime - (expectedStartTime + SymbolDuration(5));
 
     Uart.Printf("          SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, timeoutLength, ramupDuration);
 
-    int32_t optimumEndTime = expectedStartTime + (CalculateTime(preambleLength) + timeoutLength) / 2;
+    int32_t optimumEndTime = expectedStartTime + (SymbolDuration(preambleLength) + timeoutLength) / 2;
     int32_t corr = windowEndTime - optimumEndTime;
 
     Uart.Printf("          Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
@@ -200,7 +200,7 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
 
 void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
 {
-    int32_t airTime = CalculateAirTime(payloadLength);
+    int32_t airTime = PayloadAirTime(payloadLength);
     int32_t rampupTime = duration - airTime;
 
     if (longRangeMode == LongrangeModeLora) {
@@ -232,7 +232,7 @@ void TimingAnalyzer::OutOfSync(const char *stage)
     ResetStage();
 }
 
-int32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
+int32_t TimingAnalyzer::PayloadAirTime(uint8_t payloadLength)
 {
     int32_t symbolDuration = (1U << spreadingFactor) * 1000000 / (int32_t)bandwidth;
     int32_t preambleDuration = (preambleLength + 4) * symbolDuration + symbolDuration / 4;
@@ -248,7 +248,7 @@ int32_t TimingAnalyzer::CalculateAirTime(uint8_t payloadLength)
     return preambleDuration + payloadDuration;
 }
 
-int32_t TimingAnalyzer::CalculateTime(int numSymbols)
+int32_t TimingAnalyzer::SymbolDuration(int numSymbols)
 {
     int32_t symbolDuration = (1U << spreadingFactor) * 1000000 / (int32_t)bandwidth;
     return symbolDuration * numSymbols;

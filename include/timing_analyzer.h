@@ -77,8 +77,8 @@ private:
     static void PrintRelativeTimestamp(int32_t timestamp);
 
     void OutOfSync(const char* stage);
-    int32_t CalculateAirTime(uint8_t payloadLength);
-    int32_t CalculateTime(int numSymbols);
+    int32_t PayloadAirTime(uint8_t payloadLength);
+    int32_t SymbolDuration(int numSymbols);
 
     int sampleNo;
     LoraTxRxStage stage;
