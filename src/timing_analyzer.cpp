@@ -13,11 +13,11 @@
 #include "uart.h"
 #include <cmath>
 
-#define TIMESTAMP_PATTERN "%7ld: "
+#define TIMESTAMP_PATTERN "%8ld: "
 
 TimingAnalyzer::TimingAnalyzer()
     : stage(LoraStageIdle), result(LoraResultNoDownlink),
-      txStartTime(0), txEndTime(0),
+      txUncalibratedStartTime(0), txStartTime(0), txUncalibratedEndTime(0),
       rx1Start(0), rx1End(0), rx2Start(0), rx2End(0),
       bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
       implicitHeader(0), spreadingFactor(7), crcOn(0),
@@ -40,9 +40,9 @@ void TimingAnalyzer::OnTxStart(uint32_t time)
     }
 
     sampleNo++;
-    Uart.Printf("--------- Sample %d ---\r\n", sampleNo);
+    Uart.Printf("--------  Sample %d  --------\r\n", sampleNo);
     stage = LoraStageTransmitting;
-    txStartTime = time;
+    txUncalibratedStartTime = time;
 }
 
 void TimingAnalyzer::OnRxStart(uint32_t time)
@@ -53,20 +53,21 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
         return;
     }
 
+    int32_t t = CalibratedTime(time - txUncalibratedEndTime);
+
     if (stage == LoraStageBeforeRx1Window)
     {
         stage = LoraStageInRx1Window;
-        rx1Start = time;
+        rx1Start = t;
     }
     else
     {
         stage = LoraStageInRx2Window;
-        rx2Start = time;
+        rx2Start = t;
     }
 
-    PrintRelativeTimestamp(time - txEndTime);
-    Uart.Printf("RX%c start (mode %s)\r\n", stage == LoraStageInRx1Window ? '1' : '2',
-        longRangeMode == LongrangeModeLora ? "LoRa" : "FSK");
+    PrintRelativeTimestamp(t);
+    Uart.Printf("RX%c start\r\n", stage == LoraStageInRx1Window ? '1' : '2');
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
@@ -79,32 +80,33 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
 
     if (stage == LoraStageTransmitting)
     {
+        txUncalibratedEndTime = time;
+        txStartTime = CalibratedTime(txUncalibratedStartTime - txUncalibratedEndTime);
         stage = LoraStageBeforeRx1Window;
-        txEndTime = time;
 
-        PrintRelativeTimestamp(txStartTime - txEndTime);
-        Uart.Printf("TX start (mode %s)\r\n", longRangeMode == LongrangeModeLora ? "LoRa" : "FSK");
+        PrintRelativeTimestamp(txStartTime);
+        Uart.Print("TX start\r\n");
         PrintRelativeTimestamp(0);
         Uart.Print("TX done\r\n");
 
-        PrintParameters(txEndTime - txStartTime, txPayloadLength);
+        PrintParameters(-txStartTime, txPayloadLength);
     }
     else if (stage == LoraStageInRx1Window)
     {
-        rx1End = time;
+        rx1End = CalibratedTime(time - txUncalibratedEndTime);
         result = LoraResultDownlinkInRx1;
         stage = LoraStageWaitingForData;
 
-        PrintRelativeTimestamp(rx1End - txEndTime);
+        PrintRelativeTimestamp(rx1End);
         Uart.Print("RX1: downlink packet received\r\n");
     }
     else
     {
-        rx2End = time;
+        rx2End = CalibratedTime(time - txUncalibratedEndTime);
         result = LoraResultDownlinkInRx2;
         stage = LoraStageWaitingForData;
 
-        PrintRelativeTimestamp(rx2End - txEndTime);
+        PrintRelativeTimestamp(rx2End);
         Uart.Print("RX2: downlink packet received\r\n");
     }
 }
@@ -118,9 +120,9 @@ void TimingAnalyzer::OnDataReceived(uint8_t payloadLength)
     }
 
     if (result == LoraResultDownlinkInRx1)
-        PrintRxAnalysis(rx1Start - txEndTime, rx1End - txEndTime, payloadLength);
+        PrintRxAnalysis(rx1Start, rx1End, payloadLength);
     else
-        PrintRxAnalysis(rx2Start - txEndTime, rx2End - txEndTime, payloadLength);
+        PrintRxAnalysis(rx2Start, rx2End, payloadLength);
 
     OnRxTxCompleted();
 }
@@ -133,47 +135,44 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
         return;
     }
 
-    PrintRelativeTimestamp(time - txEndTime);
+    int32_t t = CalibratedTime(time - txUncalibratedEndTime);
+
+    PrintRelativeTimestamp(t);
     Uart.Print(stage == LoraStageInRx1Window ? "RX1 timeout\r\n" : "RX2 timeout\r\n");
 
     if (stage == LoraStageInRx1Window)
     {
         stage = LoraStageBeforeRx2Window;
-        rx1End = time;
-        PrintTimeoutAnalysis(rx1Start - txEndTime, rx1End - txEndTime);
+        rx1End = t;
+        PrintTimeoutAnalysis(rx1Start, rx1End);
     }
     else
     {
-        rx2End = time;
+        rx2End = t;
         result = LoraResultNoDownlink;
-        PrintTimeoutAnalysis(rx2Start - txEndTime, rx2End - txEndTime);
+        PrintTimeoutAnalysis(rx2Start, rx2End);
         OnRxTxCompleted();
     }
 }
 
 void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength)
 {
-    windowStartTime = CorrectedTime(windowStartTime);
-    windowEndTime = CorrectedTime(windowEndTime);
-
     // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
     int32_t airTime = CalculateAirTime(payloadLength - 2);
 
-    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
+    Uart.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime);
 
     int32_t calculatedStartTime = windowEndTime - airTime;
-    Uart.Printf("         Start of preamble (calculated): %ld\r\n", calculatedStartTime);
+    Uart.Printf("          Start of preamble (calculated): %ld\r\n", calculatedStartTime);
 
-    int32_t marginStart = calculatedStartTime - windowStartTime;
-    Uart.Printf("         Margin: start = %ldus\r\n", marginStart);
+    // Ramp-up time is not known but assumed to be 300us.
+    int32_t marginStart = calculatedStartTime + CalculateTime(preambleLength - 5) - windowStartTime - 300;
+    Uart.Printf("          Margin: start = %ldus\r\n", marginStart);
 }
 
 void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)
 {
-    windowStartTime = CorrectedTime(windowStartTime);
-    windowEndTime = CorrectedTime(windowEndTime);
-
     // Round to nearest second
     int32_t expectedStartTime = (windowStartTime + 500000) / 1000000 * 1000000;
 
@@ -185,28 +184,32 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
     // errors is the same at the start and the end of the window.
     int32_t timeoutLength = CalculateTime(numTimeoutSymbols);
     int32_t ramupDuration = windowEndTime - windowStartTime - timeoutLength;
-    int32_t marginStart = expectedStartTime + CalculateTime(preambleLength - 5) - (windowStartTime + ramupDuration);
+    int32_t marginStart = expectedStartTime + CalculateTime(preambleLength - 5) - windowStartTime - ramupDuration;
     int32_t marginEnd = windowEndTime - (expectedStartTime + CalculateTime(5));
 
-    Uart.Printf("         SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
+    Uart.Printf("          SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, timeoutLength, ramupDuration);
 
     int32_t optimumEndTime = expectedStartTime + (CalculateTime(preambleLength) + timeoutLength) / 2;
     int32_t corr = windowEndTime - optimumEndTime;
 
-    Uart.Printf("         Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
-    Uart.Printf("         Correction for optimum RX window: %ldus\r\n", corr);
+    Uart.Printf("          Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
+    Uart.Printf("          Correction for optimum RX window: %ldus\r\n", corr);
 }
 
 
 void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
 {
-    duration = CorrectedTime(duration);
     int32_t airTime = CalculateAirTime(payloadLength);
     int32_t rampupTime = duration - airTime;
 
-    Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
-            spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
+    if (longRangeMode == LongrangeModeLora) {
+        Uart.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
+                spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
+    } else {
+        Uart.Printf("          FSK, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
+                bandwidth, payloadLength, airTime, rampupTime);
+    }
 }
 
 void TimingAnalyzer::OnRxTxCompleted()
@@ -217,7 +220,7 @@ void TimingAnalyzer::OnRxTxCompleted()
 
 void TimingAnalyzer::PrintRelativeTimestamp(int32_t timestamp)
 {
-    Uart.Printf(TIMESTAMP_PATTERN, CorrectedTime(timestamp));
+    Uart.Printf(TIMESTAMP_PATTERN, timestamp);
 }
 
 void TimingAnalyzer::OutOfSync(const char *stage)

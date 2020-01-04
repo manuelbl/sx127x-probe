@@ -70,7 +70,7 @@ private:
     void ResetStage();
     void OnRxTxCompleted();
 
-    static int32_t CorrectedTime(int32_t time) { return (int32_t) round(time * 1000.0 / MEASURED_CLOCK); }
+    static int32_t CalibratedTime(int32_t time) { return (int32_t) round(time * 1000.0 / MEASURED_CLOCK); }
     void PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndTime, int payloadLength);
     void PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime);
     void PrintParameters(int32_t duration, int payloadLength);
@@ -83,12 +83,13 @@ private:
     int sampleNo;
     LoraTxRxStage stage;
     LoraTxRxResult result;
-    uint32_t txStartTime;
-    uint32_t txEndTime;
-    uint32_t rx1Start;
-    uint32_t rx1End;
-    uint32_t rx2Start;
-    uint32_t rx2End;
+    uint32_t txUncalibratedStartTime;
+    int32_t txStartTime;
+    int32_t txUncalibratedEndTime;
+    int32_t rx1Start;
+    int32_t rx1End;
+    int32_t rx2Start;
+    int32_t rx2End;
 
     LongRangeMode longRangeMode;
     uint32_t bandwidth;
