@@ -39,7 +39,8 @@ void TimingAnalyzer::OnTxStart(uint32_t time)
         return;
     }
 
-    Uart.Print("---------\r\n");
+    sampleNo++;
+    Uart.Printf("--------- Sample %d ---\r\n", sampleNo);
     stage = LoraStageTransmitting;
     txStartTime = time;
 }
@@ -161,8 +162,11 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
     Uart.Printf("         SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime);
 
-    int32_t calculatedStart = windowEndTime - airTime;
-    Uart.Printf("         Start of preamble (calculated): %ld\r\n", calculatedStart);
+    int32_t calculatedStartTime = windowEndTime - airTime;
+    Uart.Printf("         Start of preamble (calculated): %ld\r\n", calculatedStartTime);
+
+    int32_t marginStart = calculatedStartTime - windowStartTime;
+    Uart.Printf("         Margin: start = %ldus\r\n", marginStart);
 }
 
 void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)

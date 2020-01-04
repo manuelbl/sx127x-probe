@@ -15,7 +15,7 @@
 #include <math.h>
 
 #if !defined(MEASURED_CLOCK)
-#define MEASURED_CLOCK 1
+#define MEASURED_CLOCK 1000
 #endif
 
 
@@ -80,6 +80,7 @@ private:
     int32_t CalculateAirTime(uint8_t payloadLength);
     int32_t CalculateTime(int numSymbols);
 
+    int sampleNo;
     LoraTxRxStage stage;
     LoraTxRxResult result;
     uint32_t txStartTime;
