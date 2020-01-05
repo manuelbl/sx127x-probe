@@ -15,6 +15,10 @@
 
 #define TIMESTAMP_PATTERN "%8ld: "
 
+// Minimum number of preamble symbols required to detect packet
+#define MIN_RX_SYMBOLS 6
+
+
 TimingAnalyzer::TimingAnalyzer()
     : stage(LoraStageIdle), result(LoraResultNoDownlink),
       txUncalibratedStartTime(0), txStartTime(0), txUncalibratedEndTime(0),
@@ -167,7 +171,7 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
     Uart.Printf("          Start of preamble (calculated): %ld\r\n", calculatedStartTime);
 
     // Ramp-up time is not known but assumed to be 300us.
-    int32_t marginStart = calculatedStartTime + SymbolDuration(preambleLength - 5) - windowStartTime - 300;
+    int32_t marginStart = calculatedStartTime + SymbolDuration(preambleLength - MIN_RX_SYMBOLS) - windowStartTime - 300;
     Uart.Printf("          Margin: start = %ldus\r\n", marginStart);
 }
 
@@ -184,8 +188,8 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
     // errors is the same at the start and the end of the window.
     int32_t timeoutLength = SymbolDuration(numTimeoutSymbols);
     int32_t ramupDuration = windowEndTime - windowStartTime - timeoutLength;
-    int32_t marginStart = expectedStartTime + SymbolDuration(preambleLength - 5) - windowStartTime - ramupDuration;
-    int32_t marginEnd = windowEndTime - (expectedStartTime + SymbolDuration(5));
+    int32_t marginStart = expectedStartTime + SymbolDuration(preambleLength - MIN_RX_SYMBOLS) - windowStartTime - ramupDuration;
+    int32_t marginEnd = windowEndTime - (expectedStartTime + SymbolDuration(MIN_RX_SYMBOLS));
 
     Uart.Printf("          SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, timeoutLength, ramupDuration);
