@@ -5,32 +5,37 @@
  * Licensed under MIT License
  * https://opensource.org/licenses/MIT
  * 
- * Asynchronous UART/serial output
+ * USB Serial Communication
  */
-#include "uart.h"
+
 #include "main.h"
+#include "usb_serial.h"
+#include "stm32f1xx.h"
+#include "stm32f1xx_hal.h"
+#include "usbd_def.h"
+#include "usbd_core.h"
+#include "usbd_cdc.h"
+#include "usbd_desc.h"
 #include <cstdarg>
+#include <cstdio>
 #include <cstring>
-#include <stm32f1xx_hal.h>
-
-#define UART_RX_PIN GPIO_PIN_3
-#define UART_TX_PIN GPIO_PIN_2
-#define UART_PORT GPIOA
-#define UART_Instance USART2
-#define UART_IRQn USART2_IRQn
-#define UART_IRQHandler USART2_IRQHandler
-
-#define DMA_UART_Channel DMA1_Channel7
-#define DMA_UART_IRQn DMA1_Channel7_IRQn
-#define DMA_UART_IRQHandler DMA1_Channel7_IRQHandler
 
 
-UartImpl Uart;
+static USBD_CDC_ItfTypeDef cdcInterface =
+{
+  USBSerialImpl::CDCInit,
+  USBSerialImpl::CDCDeInit,
+  USBSerialImpl::CDCControl,
+  USBSerialImpl::CDCReceive
+};
 
-static UART_HandleTypeDef uart;
-static DMA_HandleTypeDef hdma_uart_tx;
+USBSerialImpl USBSerial;
 
-// Buffer for data to be transmitted via UART
+extern PCD_HandleTypeDef hpcd_USB_FS;
+static USBD_HandleTypeDef hUsbDevice;
+
+
+// Buffer for data to be transmitted via USB Serial
 //  *  0 <= head < buf_len
 //  *  0 <= tail < buf_len
 //  *  head == tail => empty or full
@@ -45,7 +50,7 @@ static uint8_t txBuf[TX_BUF_LEN];
 static volatile int txBufHead = 0;
 static volatile int txBufTail = 0;
 
-// Queue of UART transmission data chunks:
+// Queue of USB Serial transmission data chunks:
 //  *  0 <= head < queue_len
 //  *  0 <= tail < queue_len
 //  *  head == tail => empty
@@ -61,16 +66,29 @@ static volatile int txChunkBreak[TX_QUEUE_LEN];
 static volatile int txQueueHead = 0;
 static volatile int txQueueTail = 0;
 
+// Circular buffer for data received via USB Serial
+//  *  0 <= head < < buf_len
+//  *  0 <= tail < buf_len
+//  *  head == tail => empty
+//  *  head + 1 == tail => full (modulo RX_BUF_LEN)
+// `rxBufHead` points to the positions where the next received haracter
+// should be inserted. `rxBufTail` points to the next character
+// that should be passed to the application.
+#define RX_BUF_LEN 1024
+static uint8_t rxBuf[RX_BUF_LEN];
+static volatile int rxBufHead = 0;
+static volatile int rxBufTail = 0;
+
 static char formatBuf[128];
 
 static const char *HEX_DIGITS = "0123456789ABCDEF";
 
-void UartImpl::Print(const char *str)
+void USBSerialImpl::Print(const char *str)
 {
     Write((const uint8_t *)str, strlen(str));
 }
 
-void UartImpl::Printf(const char *fmt, ...)
+void USBSerialImpl::Printf(const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -79,7 +97,7 @@ void UartImpl::Printf(const char *fmt, ...)
     Print(formatBuf);
 }
 
-void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
+void USBSerialImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 {
     while (len > 0)
     {
@@ -105,7 +123,7 @@ void UartImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
     }
 }
 
-void UartImpl::Write(const uint8_t *data, size_t len)
+void USBSerialImpl::Write(const uint8_t *data, size_t len)
 {
     int bufTail = txBufTail;
     int bufHead = txBufHead;
@@ -155,7 +173,7 @@ void UartImpl::Write(const uint8_t *data, size_t len)
         Write(data + size, len - size);
 }
 
-bool UartImpl::TryAppend(int bufHead)
+bool USBSerialImpl::TryAppend(int bufHead)
 {
     // Try to append to newest pending chunk,
     // provided it's not yet being transmitted
@@ -186,12 +204,14 @@ bool UartImpl::TryAppend(int bufHead)
     return true;
 }
 
-void UartImpl::StartTransmit()
+void USBSerialImpl::StartTransmit()
 {
     InterruptGuard guard;
 
-    if (uart.gState != HAL_UART_STATE_READY || txQueueTail == txQueueHead)
-        return; // UART busy or queue empty
+    if (txQueueTail == txQueueHead
+            || !USBSerial.IsConnected()
+            || !USBSerial.IsTxIdle())
+        return; // Queue empty or USB not connected or USB TX busy
 
     int queueTail = txQueueTail;
     int endPos = txChunkBreak[queueTail];
@@ -209,10 +229,13 @@ void UartImpl::StartTransmit()
         ErrorHandler();
     }
 
-    HAL_UART_Transmit_DMA(&uart, txBuf + startPos, endPos - startPos);
+    USBD_CDC_SetTxBuffer(&hUsbDevice, txBuf + startPos, endPos - startPos);
+    uint8_t result = USBD_CDC_TransmitPacket(&hUsbDevice);
+    if (result != USBD_OK)
+        ErrorHandler();
 }
 
-void UartImpl::TransmissionCompleted()
+void USBSerialImpl::TransmissionCompleted()
 {
     {
         InterruptGuard guard;
@@ -226,103 +249,88 @@ void UartImpl::TransmissionCompleted()
         txQueueTail = queueTail;
     }
 
-    Uart.StartTransmit();
+    USBSerial.StartTransmit();
 }
 
-extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+bool USBSerialImpl::IsTxIdle()
 {
-    Uart.TransmissionCompleted();
+    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)hUsbDevice.pClassData;
+    return hcdc->TxState == 0;
+}
+
+bool USBSerialImpl::IsConnected()
+{
+    return hUsbDevice.dev_state == USBD_STATE_CONFIGURED;
+}
+
+void USBSerialImpl::Init()
+{
+    if (USBD_Init(&hUsbDevice, &usbSerialDeviceDescriptor, DEVICE_FS) != USBD_OK)
+        ErrorHandler();
+
+    if (USBD_RegisterClass(&hUsbDevice, &USBD_CDC) != USBD_OK)
+        ErrorHandler();
+
+    InstallDataInSerial();
+
+    if (USBD_CDC_RegisterInterface(&hUsbDevice, &cdcInterface) != USBD_OK)
+        ErrorHandler();
+
+    if (USBD_Start(&hUsbDevice) != USBD_OK)
+        ErrorHandler();
 }
 
 
-// --- Initialization (mostly generated by STM32 CubeMX)
+// --- CDC Interface Implementation
 
-void UartImpl::Init()
+
+int8_t USBSerialImpl::CDCInit()
 {
-    uart.Instance = UART_Instance;
-    uart.Init.BaudRate = 115200;
-    uart.Init.WordLength = UART_WORDLENGTH_8B;
-    uart.Init.StopBits = UART_STOPBITS_1;
-    uart.Init.Parity = UART_PARITY_NONE;
-    uart.Init.Mode = UART_MODE_TX;
-    uart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    uart.Init.OverSampling = UART_OVERSAMPLING_16;
-    HAL_UART_Init(&uart);
-
-    // DMA UART IRQn interrupt configuration
-    HAL_NVIC_SetPriority(DMA_UART_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA_UART_IRQn);
-
-    txChunkBreak[txQueueHead] = txBufHead;
+    USBD_CDC_SetTxBuffer(&hUsbDevice, txBuf, 0);
+    USBD_CDC_SetRxBuffer(&hUsbDevice, rxBuf);
+    USBSerialImpl::StartTransmit();
+    return USBD_OK;
 }
 
-extern "C" void HAL_UART_MspInit(UART_HandleTypeDef *huart)
+int8_t USBSerialImpl::CDCDeInit()
 {
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    if (huart->Instance == UART_Instance)
-    {
-        // Peripheral clock enable
-        __HAL_RCC_USART2_CLK_ENABLE();
+    return USBD_OK;
+}
 
-        __HAL_RCC_GPIOA_CLK_ENABLE();
-        // USART2 GPIO Configuration
-        // PA2     ------> USART2_TX
-        // PA3     ------> USART2_RX
-        GPIO_InitStruct.Pin = UART_TX_PIN;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-        HAL_GPIO_Init(UART_PORT, &GPIO_InitStruct);
+int8_t USBSerialImpl::CDCControl(uint8_t cmd, uint8_t* buf, uint16_t length)
+{
+    return USBD_OK;
+}
 
-        GPIO_InitStruct.Pin = UART_RX_PIN;
-        GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(UART_PORT, &GPIO_InitStruct);
+int8_t USBSerialImpl::CDCReceive(uint8_t* buf, uint32_t *len)
+{
+    USBD_CDC_SetRxBuffer(&hUsbDevice, &buf[0]);
+    USBD_CDC_ReceivePacket(&hUsbDevice);
+    return USBD_OK;
+}
 
-        // USART2 DMA Init
-        // USART2_TX Init
-        hdma_uart_tx.Instance = DMA_UART_Channel;
-        hdma_uart_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-        hdma_uart_tx.Init.PeriphInc = DMA_PINC_DISABLE;
-        hdma_uart_tx.Init.MemInc = DMA_MINC_ENABLE;
-        hdma_uart_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-        hdma_uart_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-        hdma_uart_tx.Init.Mode = DMA_NORMAL;
-        hdma_uart_tx.Init.Priority = DMA_PRIORITY_LOW;
-        HAL_DMA_Init(&hdma_uart_tx);
 
-        __HAL_LINKDMA(huart, hdmatx, hdma_uart_tx);
+static uint8_t (*dataInCDC)(struct _USBD_HandleTypeDef *pdev, uint8_t epnum) = NULL;
 
-        // USART interrupt is needed for completion callback
-        HAL_NVIC_SetPriority(UART_IRQn, 0, 0);
-        HAL_NVIC_EnableIRQ(UART_IRQn);
+static uint8_t DataInSerial(USBD_HandleTypeDef *pdev, uint8_t epnum)
+{
+    uint8_t status = dataInCDC(pdev, epnum);
+    if (status == USBD_OK) {
+        USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDevice.pClassData;
+        if (hcdc->TxState == 0)
+            USBSerial.TransmissionCompleted();
     }
+
+    return status;
 }
 
-extern "C" void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
+void USBSerialImpl::InstallDataInSerial()
 {
-    if (huart->Instance == UART_Instance)
-    {
-        // Peripheral clock disable
-        __HAL_RCC_USART2_CLK_DISABLE();
-
-        // USART2 GPIO Configuration
-        // PA2     ------> USART2_TX
-        // PA3     ------> USART3_RX
-        HAL_GPIO_DeInit(UART_PORT, UART_TX_PIN | UART_RX_PIN);
-
-        // USART2 DMA DeInit
-        HAL_DMA_DeInit(huart->hdmatx);
-
-        HAL_NVIC_DisableIRQ(UART_IRQn);
-    }
+    dataInCDC = USBD_CDC.DataIn;
+    USBD_CDC.DataIn = DataInSerial;
 }
 
-extern "C" void DMA_UART_IRQHandler()
+extern "C" void USB_LP_CAN1_RX0_IRQHandler()
 {
-    HAL_DMA_IRQHandler(&hdma_uart_tx);
-}
-
-extern "C" void UART_IRQHandler()
-{
-    HAL_UART_IRQHandler(&uart);
+    HAL_PCD_IRQHandler(&hpcd_USB_FS);
 }

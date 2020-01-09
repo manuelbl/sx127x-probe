@@ -10,7 +10,6 @@
 
 #include "timing_analyzer.h"
 #include "main.h"
-#include "uart.h"
 #include <cmath>
 
 #define TIMESTAMP_PATTERN "%8ld: "
@@ -44,7 +43,7 @@ void TimingAnalyzer::OnTxStart(uint32_t time)
     }
 
     sampleNo++;
-    Uart.Printf("--------  Sample %d  --------\r\n", sampleNo);
+    Serial.Printf("--------  Sample %d  --------\r\n", sampleNo);
     stage = LoraStageTransmitting;
     txUncalibratedStartTime = time;
 }
@@ -71,7 +70,7 @@ void TimingAnalyzer::OnRxStart(uint32_t time)
     }
 
     PrintRelativeTimestamp(t);
-    Uart.Printf("RX%c start\r\n", stage == LoraStageInRx1Window ? '1' : '2');
+    Serial.Printf("RX%c start\r\n", stage == LoraStageInRx1Window ? '1' : '2');
 }
 
 void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
@@ -89,9 +88,9 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         stage = LoraStageBeforeRx1Window;
 
         PrintRelativeTimestamp(txStartTime);
-        Uart.Print("TX start\r\n");
+        Serial.Print("TX start\r\n");
         PrintRelativeTimestamp(0);
-        Uart.Print("TX done\r\n");
+        Serial.Print("TX done\r\n");
 
         PrintParameters(-txStartTime, txPayloadLength);
     }
@@ -102,7 +101,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         stage = LoraStageWaitingForData;
 
         PrintRelativeTimestamp(rx1End);
-        Uart.Print("RX1: downlink packet received\r\n");
+        Serial.Print("RX1: downlink packet received\r\n");
     }
     else
     {
@@ -111,7 +110,7 @@ void TimingAnalyzer::OnDoneInterrupt(uint32_t time)
         stage = LoraStageWaitingForData;
 
         PrintRelativeTimestamp(rx2End);
-        Uart.Print("RX2: downlink packet received\r\n");
+        Serial.Print("RX2: downlink packet received\r\n");
     }
 }
 
@@ -142,7 +141,7 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     int32_t t = CalibratedTime(time - txUncalibratedEndTime);
 
     PrintRelativeTimestamp(t);
-    Uart.Print(stage == LoraStageInRx1Window ? "RX1 timeout\r\n" : "RX2 timeout\r\n");
+    Serial.Print(stage == LoraStageInRx1Window ? "RX1 timeout\r\n" : "RX2 timeout\r\n");
 
     if (stage == LoraStageInRx1Window)
     {
@@ -164,15 +163,15 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
     // HACK: It looks as if the air time calculation fits much better with 2 bytes less...
     int32_t airTime = PayloadAirTime(payloadLength - 2);
 
-    Uart.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
+    Serial.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus\r\n",
             spreadingFactor, bandwidth, payloadLength, airTime);
 
     int32_t calculatedStartTime = windowEndTime - airTime;
-    Uart.Printf("          Start of preamble (calculated): %ld\r\n", calculatedStartTime);
+    Serial.Printf("          Start of preamble (calculated): %ld\r\n", calculatedStartTime);
 
     // Ramp-up time is not known but assumed to be 300us.
     int32_t marginStart = calculatedStartTime + SymbolDuration(preambleLength - MIN_RX_SYMBOLS) - windowStartTime - 300;
-    Uart.Printf("          Margin: start = %ldus\r\n", marginStart);
+    Serial.Printf("          Margin: start = %ldus\r\n", marginStart);
 }
 
 void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)
@@ -191,14 +190,14 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
     int32_t marginStart = expectedStartTime + SymbolDuration(preambleLength - MIN_RX_SYMBOLS) - windowStartTime - ramupDuration;
     int32_t marginEnd = windowEndTime - (expectedStartTime + SymbolDuration(MIN_RX_SYMBOLS));
 
-    Uart.Printf("          SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
+    Serial.Printf("          SF%d, %lu Hz, airtime = %ldus, ramp-up = %ldus\r\n",
             spreadingFactor, bandwidth, timeoutLength, ramupDuration);
 
     int32_t optimumEndTime = expectedStartTime + (SymbolDuration(preambleLength) + timeoutLength) / 2;
     int32_t corr = windowEndTime - optimumEndTime;
 
-    Uart.Printf("          Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
-    Uart.Printf("          Correction for optimum RX window: %ldus\r\n", corr);
+    Serial.Printf("          Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
+    Serial.Printf("          Correction for optimum RX window: %ldus\r\n", corr);
 }
 
 
@@ -208,10 +207,10 @@ void TimingAnalyzer::PrintParameters(int32_t duration, int payloadLength)
     int32_t rampupTime = duration - airTime;
 
     if (longRangeMode == LongrangeModeLora) {
-        Uart.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
+        Serial.Printf("          SF%d, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
                 spreadingFactor, bandwidth, payloadLength, airTime, rampupTime);
     } else {
-        Uart.Printf("          FSK, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
+        Serial.Printf("          FSK, %lu Hz, payload = %d bytes, airtime = %ldus, ramp-up = %ldus\r\n",
                 bandwidth, payloadLength, airTime, rampupTime);
     }
 }
@@ -224,14 +223,14 @@ void TimingAnalyzer::OnRxTxCompleted()
 
 void TimingAnalyzer::PrintRelativeTimestamp(int32_t timestamp)
 {
-    Uart.Printf(TIMESTAMP_PATTERN, timestamp);
+    Serial.Printf(TIMESTAMP_PATTERN, timestamp);
 }
 
 void TimingAnalyzer::OutOfSync(const char *stage)
 {
-    Uart.Print("Probe out of sync: ");
-    Uart.Print(stage);
-    Uart.Print("\r\n");
+    Serial.Print("Probe out of sync: ");
+    Serial.Print(stage);
+    Serial.Print("\r\n");
 
     ResetStage();
 }

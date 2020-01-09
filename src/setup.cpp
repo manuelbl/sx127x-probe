@@ -10,6 +10,7 @@
 
 #include "setup.h"
 #include "main.h"
+#include "usb_serial.h"
 #include "uart.h"
 
 SPI_HandleTypeDef hspi;
@@ -33,15 +34,14 @@ void setup()
     SPI2_Init();
     TIM2_Init();
     Uart.Init();
+    USBSerial.Init();
 }
 
 // Initializes the Global MSP.
-extern "C" void HAL_MspInit(void)
+extern "C" void HAL_MspInit()
 {
     __HAL_RCC_AFIO_CLK_ENABLE();
     __HAL_RCC_PWR_CLK_ENABLE();
-
-    // System interrupt init
 
     // NOJTAG: JTAG-DP Disabled and SW-DP Enabled
     __HAL_AFIO_REMAP_SWJ_NOJTAG();
@@ -51,6 +51,7 @@ void SystemClock_Config()
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
     // Initializes the CPU, AHB and APB busses clocks
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -70,6 +71,10 @@ void SystemClock_Config()
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
     HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
+    HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
 
     HAL_RCC_EnableCSS();
 }
@@ -294,13 +299,13 @@ extern "C" void PendSV_Handler()
 {
 }
 
-extern "C" void EXTI_NSS_IRQHandler(void)
+extern "C" void EXTI_NSS_IRQHandler()
 {
     SpiTrxCompleted();
     HAL_GPIO_EXTI_IRQHandler(SPI_NSS_PIN);
 }
 
-extern "C" void DMA_SPI_IRQHandler(void)
+extern "C" void DMA_SPI_IRQHandler()
 {
     HAL_DMA_IRQHandler(&hdma_spi_rx);
 }

@@ -13,6 +13,7 @@
 #include "timing.h"
 #include "timing_analyzer.h"
 #include "uart.h"
+#include "usb_serial.h"
 #include <cstring>
 
 enum EventType
@@ -52,13 +53,20 @@ int main()
 {
     setup();
 
-    Uart.Print("SX127x Probe\r\n");
+    Serial.Print("SX127x Probe\r\n");
+
+    uint32_t timeout = GetMicros() + 5000000;
 
     // Receive SPI data into a circuar buffer indefinitely
     HAL_SPI_Receive_DMA(&hspi, spiDataBuf, SPI_DATA_BUF_LEN);
 
     while (true)
     {
+        if (timeout - GetMicros() > 0xf0000000) {
+            Serial.Print("Tick\r\n");
+            timeout = GetMicros() + 5000000;
+        }
+
         if (eventQueueOverflow != 0)
         {
             ErrorHandler();
@@ -135,22 +143,24 @@ void SpiTrxCompleted()
 }
 
 // Called when the DIO0 signal goes high
-extern "C" void EXTI_DIO0_IRQHandler(void)
+extern "C" void EXTI_DIO0_IRQHandler()
 {
     QueueEvent(EventTypeDone, -1);
     HAL_GPIO_EXTI_IRQHandler(DIO0_PIN);
 }
 
 // Called when the DIO1 signal goes high
-extern "C" void EXTI_DIO1_IRQHandler(void)
+extern "C" void EXTI_DIO1_IRQHandler()
 {
     QueueEvent(EventTypeTimeout, -1);
     HAL_GPIO_EXTI_IRQHandler(DIO1_PIN);
 }
 
-void ErrorHandler()
+void Error_Handler()
 {
     while (true)
     {
     }
 }
+
+extern "C" void ErrorHandler() __attribute__((alias("Error_Handler")));;

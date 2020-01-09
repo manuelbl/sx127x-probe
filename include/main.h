@@ -14,8 +14,17 @@
 #include <stdint.h>
 #include <stm32f1xx.h>
 
+#define Serial USBSerial
 
-void ErrorHandler();
+#if Serial == USBSerial
+#include "usb_serial.h"
+#elif Serial == Uart
+#include "uart.h"
+#endif
+
+
+extern "C" void Error_Handler();
+extern "C" void ErrorHandler();
 
 
 class InterruptGuard {

@@ -10,7 +10,6 @@
 
 #include "main.h"
 #include "spi_analyzer.h"
-#include "uart.h"
 
 
 const uint32_t BANDWIDTH_TABLE[] = {
@@ -31,12 +30,12 @@ void SpiAnalyzer::OnTrx(uint32_t time, const uint8_t *startTrx, const uint8_t *e
 #if SPI_DEBUG == 1
     if (endTrx > startTrx)
     {
-        Uart.PrintHex(startTrx, endTrx - startTrx, true);
+        Serial.PrintHex(startTrx, endTrx - startTrx, true);
     }
     else
     {
-        Uart.PrintHex(startTrx, circularBufferEnd - startTrx, false);
-        Uart.PrintHex(circularBufferStart, endTrx - circularBufferStart, true);
+        Serial.PrintHex(startTrx, circularBufferEnd - startTrx, false);
+        Serial.PrintHex(circularBufferStart, endTrx - circularBufferStart, true);
     }
 #endif
 
