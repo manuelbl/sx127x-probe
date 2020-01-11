@@ -110,11 +110,7 @@ void UartImpl::Write(const uint8_t *data, size_t len)
     int bufTail = txBufTail;
     int bufHead = txBufHead;
     if (bufHead == bufTail && txQueueHead != txQueueTail)
-    {
-        // tx data buffer is full
-        ErrorHandler();
-        return;
-    }
+        return; // tx data buffer is full - discard data
 
     size_t availChunkSize = bufHead < bufTail ? bufTail - bufHead : TX_BUF_LEN - bufHead;
 
@@ -193,21 +189,10 @@ void UartImpl::StartTransmit()
     if (uart.gState != HAL_UART_STATE_READY || txQueueTail == txQueueHead)
         return; // UART busy or queue empty
 
-    int queueTail = txQueueTail;
-    int endPos = txChunkBreak[queueTail];
+    int startPos = txBufTail;
+    int endPos = txChunkBreak[txQueueTail];
     if (endPos == 0)
         endPos = TX_BUF_LEN;
-    queueTail--;
-    if (queueTail < 0)
-        queueTail = TX_QUEUE_LEN - 1;
-    int startPos = txChunkBreak[queueTail];
-
-    if (startPos < 0 || startPos >= TX_BUF_LEN
-            || endPos <= 0 || endPos > TX_BUF_LEN
-            || endPos <= startPos)
-    {
-        ErrorHandler();
-    }
 
     HAL_UART_Transmit_DMA(&uart, txBuf + startPos, endPos - startPos);
 }
@@ -219,11 +204,9 @@ void UartImpl::TransmissionCompleted()
 
         int queueTail = txQueueTail;
         txBufTail = txChunkBreak[queueTail]; 
-        
-        queueTail++;
-        if (queueTail >= TX_QUEUE_LEN)
-            queueTail = 0;
-        txQueueTail = queueTail;
+        txQueueTail++;
+        if (txQueueTail >= TX_QUEUE_LEN)
+            txQueueTail = 0;
     }
 
     Uart.StartTransmit();

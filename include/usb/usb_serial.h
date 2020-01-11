@@ -15,9 +15,11 @@
 #include <cstddef>
 #include <cstdint>
 
+
 class USBSerialImpl
 {
 public:
+    USBSerialImpl() : connected(false) { }
     void Init();
     void Write(const uint8_t *data, size_t len);
     void Print(const char *str);
@@ -25,22 +27,26 @@ public:
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
     bool IsTxIdle();
-    bool IsConnected();
-
-    static void TransmissionCompleted();
-    static void StartTransmit();
+    bool IsConnected() { return connected; };
 
 private:
     void Reset();
-    
+
+    static bool FlushTxBuffer();
     static bool TryAppend(int bufHead);
+    static void StartTransmit();
+    static void TransmissionCompleted();
     static void InstallDataInSerial();
 
-public:
+    static uint8_t DataInSerial(void* dev, uint8_t epnum);
+
     static int8_t CDCInit();
     static int8_t CDCDeInit();
     static int8_t CDCControl(uint8_t cmd, uint8_t* pbuf, uint16_t length);
     static int8_t CDCReceive(uint8_t* pbuf, uint32_t *Len);
+
+private:
+    bool connected;
 };
 
 extern USBSerialImpl USBSerial;

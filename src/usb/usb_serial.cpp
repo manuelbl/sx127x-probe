@@ -22,18 +22,16 @@
 #include <cstring>
 
 
-static USBD_CDC_ItfTypeDef cdcInterface =
-{
-  USBSerialImpl::CDCInit,
-  USBSerialImpl::CDCDeInit,
-  USBSerialImpl::CDCControl,
-  USBSerialImpl::CDCReceive
-};
+uint8_t (*dataInCDC)(USBD_HandleTypeDef* dev, uint8_t epnum);
+
+static USBD_CDC_ItfTypeDef cdcInterface;
 
 USBSerialImpl USBSerial;
 
 extern PCD_HandleTypeDef hpcd_USB_FS;
 static USBD_HandleTypeDef hUsbDevice;
+
+static bool isTransmitting = false;
 
 
 // Buffer for data to be transmitted via USB Serial
@@ -126,15 +124,14 @@ void USBSerialImpl::PrintHex(const uint8_t *data, size_t len, _Bool crlf)
 
 void USBSerialImpl::Write(const uint8_t *data, size_t len)
 {
-    int bufTail = txBufTail;
-    int bufHead = txBufHead;
-    if (bufHead == bufTail && txQueueHead != txQueueTail)
-    {
-        // tx data buffer is full
-        ErrorHandler();
-        return;
+    if (txBufHead == txBufTail && txQueueHead != txQueueTail) {
+        // tx data buffer is full; flush it
+        if (!FlushTxBuffer())
+            return; // no space available; discard remaining data
     }
 
+    int bufTail = txBufTail;
+    int bufHead = txBufHead;
     size_t availChunkSize = bufHead < bufTail ? bufTail - bufHead : TX_BUF_LEN - bufHead;
 
     // Copy data to transmit buffer
@@ -158,8 +155,7 @@ void USBSerialImpl::Write(const uint8_t *data, size_t len)
             queueHead = 0;
         if (queueHead == txQueueTail)
         {
-            // chunk queue is full
-            ErrorHandler();
+            // chunk queue is full - unlikely to happen
             return;
         }
 
@@ -205,6 +201,26 @@ bool USBSerialImpl::TryAppend(int bufHead)
     return true;
 }
 
+// Flush buffer.
+bool USBSerialImpl::FlushTxBuffer()
+{
+    InterruptGuard guard;
+
+    if (isTransmitting) {
+        // preserve the buffer being transmitted
+        txQueueHead = txQueueTail + 1;
+        if (txQueueHead >= TX_QUEUE_LEN)
+            txQueueHead = 0;
+        txBufHead = txChunkBreak[txQueueTail];
+        return txBufHead != txBufTail;
+
+    } else {
+        txQueueHead = txQueueTail = 0;
+        txBufHead = txBufTail = 0;
+        return true;
+    }
+}
+
 void USBSerialImpl::StartTransmit()
 {
     InterruptGuard guard;
@@ -214,26 +230,16 @@ void USBSerialImpl::StartTransmit()
             || !USBSerial.IsTxIdle())
         return; // Queue empty or USB not connected or USB TX busy
 
-    int queueTail = txQueueTail;
-    int endPos = txChunkBreak[queueTail];
+    int startPos = txBufTail;
+    int endPos = txChunkBreak[txQueueTail];
     if (endPos == 0)
         endPos = TX_BUF_LEN;
-    queueTail--;
-    if (queueTail < 0)
-        queueTail = TX_QUEUE_LEN - 1;
-    int startPos = txChunkBreak[queueTail];
-
-    if (startPos < 0 || startPos >= TX_BUF_LEN
-            || endPos <= 0 || endPos > TX_BUF_LEN
-            || endPos <= startPos)
-    {
-        ErrorHandler();
-    }
 
     USBD_CDC_SetTxBuffer(&hUsbDevice, txBuf + startPos, endPos - startPos);
     uint8_t result = USBD_CDC_TransmitPacket(&hUsbDevice);
     if (result != USBD_OK)
         ErrorHandler();
+    isTransmitting = true;
 }
 
 void USBSerialImpl::TransmissionCompleted()
@@ -241,13 +247,12 @@ void USBSerialImpl::TransmissionCompleted()
     {
         InterruptGuard guard;
 
-        int queueTail = txQueueTail;
-        txBufTail = txChunkBreak[queueTail]; 
-        
-        queueTail++;
-        if (queueTail >= TX_QUEUE_LEN)
-            queueTail = 0;
-        txQueueTail = queueTail;
+        txBufTail = txChunkBreak[txQueueTail]; 
+        txQueueTail++;
+        if (txQueueTail >= TX_QUEUE_LEN)
+            txQueueTail = 0;
+
+        isTransmitting = false;
     }
 
     USBSerial.StartTransmit();
@@ -259,13 +264,15 @@ bool USBSerialImpl::IsTxIdle()
     return hcdc->TxState == 0;
 }
 
-bool USBSerialImpl::IsConnected()
-{
-    return hUsbDevice.dev_state == USBD_STATE_CONFIGURED;
-}
-
 void USBSerialImpl::Init()
 {
+    cdcInterface = {
+        CDCInit,
+        CDCDeInit,
+        CDCControl,
+        CDCReceive
+    };
+    
     Reset();
 
     if (USBD_Init(&hUsbDevice, &usbSerialDeviceDescriptor, DEVICE_FS) != USBD_OK)
@@ -306,7 +313,6 @@ int8_t USBSerialImpl::CDCInit()
 {
     USBD_CDC_SetTxBuffer(&hUsbDevice, txBuf, 0);
     USBD_CDC_SetRxBuffer(&hUsbDevice, rxBuf);
-    USBSerialImpl::StartTransmit();
     return USBD_OK;
 }
 
@@ -317,6 +323,10 @@ int8_t USBSerialImpl::CDCDeInit()
 
 int8_t USBSerialImpl::CDCControl(uint8_t cmd, uint8_t* buf, uint16_t length)
 {
+    if (!USBSerial.connected) {
+        USBSerial.connected = true;
+        StartTransmit();
+    }
     return USBD_OK;
 }
 
@@ -328,15 +338,14 @@ int8_t USBSerialImpl::CDCReceive(uint8_t* buf, uint32_t *len)
 }
 
 
-static uint8_t (*dataInCDC)(struct _USBD_HandleTypeDef *pdev, uint8_t epnum) = NULL;
-
-static uint8_t DataInSerial(USBD_HandleTypeDef *pdev, uint8_t epnum)
+uint8_t USBSerialImpl::DataInSerial(void* dev, uint8_t epnum)
 {
+    USBD_HandleTypeDef* pdev = (USBD_HandleTypeDef*)dev;
     uint8_t status = dataInCDC(pdev, epnum);
     if (status == USBD_OK) {
         USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDevice.pClassData;
         if (hcdc->TxState == 0)
-            USBSerial.TransmissionCompleted();
+            TransmissionCompleted();
     }
 
     return status;
@@ -345,7 +354,7 @@ static uint8_t DataInSerial(USBD_HandleTypeDef *pdev, uint8_t epnum)
 void USBSerialImpl::InstallDataInSerial()
 {
     dataInCDC = USBD_CDC.DataIn;
-    USBD_CDC.DataIn = DataInSerial;
+    USBD_CDC.DataIn = (uint8_t (*)(USBD_HandleTypeDef* dev, uint8_t epnum))DataInSerial;
 }
 
 extern "C" void USB_LP_CAN1_RX0_IRQHandler()
