@@ -31,6 +31,8 @@ public:
     static void StartTransmit();
 
 private:
+    void Reset();
+    
     static bool TryAppend(int bufHead);
     static void InstallDataInSerial();
 

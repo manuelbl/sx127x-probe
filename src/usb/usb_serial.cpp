@@ -12,6 +12,7 @@
 #include "usb_serial.h"
 #include "stm32f1xx.h"
 #include "stm32f1xx_hal.h"
+#include "stm32f1xx_ll_gpio.h"
 #include "usbd_def.h"
 #include "usbd_core.h"
 #include "usbd_cdc.h"
@@ -265,6 +266,8 @@ bool USBSerialImpl::IsConnected()
 
 void USBSerialImpl::Init()
 {
+    Reset();
+
     if (USBD_Init(&hUsbDevice, &usbSerialDeviceDescriptor, DEVICE_FS) != USBD_OK)
         ErrorHandler();
 
@@ -278,6 +281,21 @@ void USBSerialImpl::Init()
 
     if (USBD_Start(&hUsbDevice) != USBD_OK)
         ErrorHandler();
+}
+
+
+void USBSerialImpl::Reset()
+{
+    // Pull USB D+ low for 20ms to trigger a device reenumeration.
+    // Since BluePill and the like are missing a proper USB reset circuitry,
+    // that's the best that can be done.
+    LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_12, LL_GPIO_MODE_OUTPUT);
+    LL_GPIO_SetPinPull(GPIOA, LL_GPIO_PIN_12, 0);
+    LL_GPIO_SetPinSpeed(GPIOA, LL_GPIO_PIN_12, LL_GPIO_SPEED_FREQ_LOW);
+    LL_GPIO_SetPinOutputType(GPIOA, LL_GPIO_PIN_12, LL_GPIO_OUTPUT_OPENDRAIN);
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_12);
+
+    HAL_Delay(20);
 }
 
 
