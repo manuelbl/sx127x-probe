@@ -19,10 +19,10 @@
 
 
 TimingAnalyzer::TimingAnalyzer()
-    : stage(LoraStageIdle), result(LoraResultNoDownlink),
+    : sampleNo(0), stage(LoraStageIdle), result(LoraResultNoDownlink),
       txUncalibratedStartTime(0), txStartTime(0), txUncalibratedEndTime(0),
       rx1Start(0), rx1End(0), rx2Start(0), rx2End(0),
-      bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
+      longRangeMode(LongrangeModeLora), bandwidth(125000), numTimeoutSymbols(0x64), codingRate(5),
       implicitHeader(0), spreadingFactor(7), crcOn(0),
       preambleLength(8), txPayloadLength(1), lowDataRateOptimization(0)
 {
