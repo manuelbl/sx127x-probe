@@ -55,18 +55,11 @@ int main()
 
     Serial.Print("SX127x Probe\r\n");
 
-    uint32_t timeout = GetMicros() + 5000000;
-
     // Receive SPI data into a circuar buffer indefinitely
     HAL_SPI_Receive_DMA(&hspi, spiDataBuf, SPI_DATA_BUF_LEN);
 
     while (true)
     {
-        if (timeout - GetMicros() > 0xf0000000) {
-            Serial.Print("Tick\r\n");
-            timeout = GetMicros() + 5000000;
-        }
-
         if (eventQueueOverflow != 0)
         {
             ErrorHandler();

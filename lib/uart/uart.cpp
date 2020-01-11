@@ -7,8 +7,8 @@
  * 
  * Asynchronous UART/serial output
  */
+#include "common.h"
 #include "uart.h"
-#include "main.h"
 #include <cstdarg>
 #include <cstring>
 #include <stm32f1xx_hal.h>

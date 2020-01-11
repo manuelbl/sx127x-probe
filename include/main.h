@@ -11,10 +11,13 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+#include "common.h"
 #include <stdint.h>
 #include <stm32f1xx.h>
 
+#if !defined(Serial)
 #define Serial USBSerial
+#endif
 
 #if Serial == USBSerial
 #include "usb_serial.h"
@@ -22,20 +25,5 @@
 #include "uart.h"
 #endif
 
-
-extern "C" void Error_Handler();
-extern "C" void ErrorHandler();
-
-
-class InterruptGuard {
-public:
-    InterruptGuard() {
-        __disable_irq();
-    }
-
-    ~InterruptGuard() {
-        __enable_irq();
-    }
-};
 
 #endif

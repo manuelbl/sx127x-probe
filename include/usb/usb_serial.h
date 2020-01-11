@@ -19,7 +19,6 @@
 class USBSerialImpl
 {
 public:
-    USBSerialImpl() : connected(false) { }
     void Init();
     void Write(const uint8_t *data, size_t len);
     void Print(const char *str);
@@ -27,7 +26,7 @@ public:
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
     bool IsTxIdle();
-    bool IsConnected() { return connected; };
+    bool IsConnected();
 
 private:
     void Reset();
@@ -44,9 +43,6 @@ private:
     static int8_t CDCDeInit();
     static int8_t CDCControl(uint8_t cmd, uint8_t* pbuf, uint16_t length);
     static int8_t CDCReceive(uint8_t* pbuf, uint32_t *Len);
-
-private:
-    bool connected;
 };
 
 extern USBSerialImpl USBSerial;

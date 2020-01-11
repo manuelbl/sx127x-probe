@@ -260,8 +260,16 @@ void USBSerialImpl::TransmissionCompleted()
 
 bool USBSerialImpl::IsTxIdle()
 {
+    if (!IsConnected())
+        return false;
+
     USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)hUsbDevice.pClassData;
     return hcdc->TxState == 0;
+}
+
+bool USBSerialImpl::IsConnected()
+{
+    return hUsbDevice.dev_state == USBD_STATE_CONFIGURED;
 }
 
 void USBSerialImpl::Init()
@@ -323,10 +331,9 @@ int8_t USBSerialImpl::CDCDeInit()
 
 int8_t USBSerialImpl::CDCControl(uint8_t cmd, uint8_t* buf, uint16_t length)
 {
-    if (!USBSerial.connected) {
-        USBSerial.connected = true;
+    if (!isTransmitting && hUsbDevice.dev_state == USBD_STATE_CONFIGURED)
         StartTransmit();
-    }
+
     return USBD_OK;
 }
 

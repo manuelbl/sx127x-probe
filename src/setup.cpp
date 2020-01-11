@@ -10,8 +10,6 @@
 
 #include "setup.h"
 #include "main.h"
-#include "usb_serial.h"
-#include "uart.h"
 
 SPI_HandleTypeDef hspi;
 DMA_HandleTypeDef hdma_spi_rx;
@@ -33,8 +31,12 @@ void setup()
     DMA_Init();
     SPI2_Init();
     TIM2_Init();
-    Uart.Init();
+
+#if Serial == USBSerial
     USBSerial.Init();
+#elif Serial == Uart
+    Uart.Init();
+#endif
 }
 
 // Initializes the Global MSP.

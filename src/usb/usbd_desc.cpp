@@ -12,7 +12,6 @@
 #include "usbd_core.h"
 #include "usbd_desc.h"
 #include "usbd_conf.h"
-#include "uart.h"
 
 // USB Device Descriptor Data
 #define VID                   1155
