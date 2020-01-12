@@ -15,15 +15,12 @@
 #include <stdint.h>
 #include <stm32f1xx.h>
 
-#if !defined(Serial)
-#define Serial USBSerial
+#if defined(UART_OUTPUT)
+    #define Serial Uart
+    #include "uart.h"
+#else
+    #define Serial USBSerial
+    #include "usb_serial.h"
 #endif
-
-#if Serial == USBSerial
-#include "usb_serial.h"
-#elif Serial == Uart
-#include "uart.h"
-#endif
-
 
 #endif

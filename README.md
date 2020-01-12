@@ -31,7 +31,7 @@ If the USB connection is not convenient, the output can instead be written to a 
 For the UART output, the code must be compiled with:
 
 ```
--D Serial=Uart
+-D UART_OUTPUT=1
 ```
 
 Additionally, a 1 kHz square wave is output so you can measure the accurracy of the probe clock.

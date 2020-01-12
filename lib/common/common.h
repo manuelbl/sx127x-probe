@@ -5,7 +5,7 @@
  * Licensed under MIT License
  * https://opensource.org/licenses/MIT
  * 
- * Common definitions
+ * Common definitions shared between libraries and main code
  */
 
 #ifndef COMMON_H

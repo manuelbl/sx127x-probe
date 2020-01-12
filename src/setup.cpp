@@ -32,10 +32,10 @@ void setup()
     SPI2_Init();
     TIM2_Init();
 
-#if Serial == USBSerial
-    USBSerial.Init();
-#elif Serial == Uart
+#if defined(UART_OUTPUT)
     Uart.Init();
+#else
+    USBSerial.Init();
 #endif
 }
 
