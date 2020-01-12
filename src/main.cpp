@@ -12,8 +12,6 @@
 #include "spi_analyzer.h"
 #include "timing.h"
 #include "timing_analyzer.h"
-#include "uart.h"
-#include "usb_serial.h"
 #include <cstring>
 
 enum EventType
@@ -49,6 +47,7 @@ static volatile uint8_t eventQueueOverflow = 0;
 static TimingAnalyzer timingAnalyzer;
 static SpiAnalyzer spiAnalyzer(spiDataBuf, SPI_DATA_BUF_LEN, timingAnalyzer);
 
+
 int main()
 {
     setup();
@@ -62,8 +61,10 @@ int main()
     {
         if (eventQueueOverflow != 0)
         {
+            Serial.Print("Event queue overflow - stopping\r\n");
             ErrorHandler();
         }
+
         if (eventQueueHead != eventQueueTail)
         {
             int tail = eventQueueTail;

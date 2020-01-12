@@ -25,6 +25,11 @@ public:
     void Printf(const char *fmt, ...);
     void PrintHex(const uint8_t *data, size_t len, _Bool crlf);
 
+    /// Number of available bytes in RX buffer
+    size_t Available();
+    /// Read data from the RX buffer (does not wait for new data)
+    size_t Read(uint8_t* data, size_t len);
+
     bool IsTxIdle();
     bool IsConnected();
 

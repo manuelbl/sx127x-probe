@@ -8,7 +8,7 @@
  * USB Serial Communication
  */
 
-#include "main.h"
+#include "common.h"
 #include "usb_serial.h"
 #include "stm32f1xx.h"
 #include "stm32f1xx_hal.h"
@@ -66,17 +66,20 @@ static volatile int txQueueHead = 0;
 static volatile int txQueueTail = 0;
 
 // Circular buffer for data received via USB Serial
-//  *  0 <= head < < buf_len
+//  *  0 <= head < buf_len
 //  *  0 <= tail < buf_len
 //  *  head == tail => empty
 //  *  head + 1 == tail => full (modulo RX_BUF_LEN)
-// `rxBufHead` points to the positions where the next received haracter
+// `rxBufHead` points to the positions where the next received character
 // should be inserted. `rxBufTail` points to the next character
 // that should be passed to the application.
-#define RX_BUF_LEN 1024
+#define RX_BUF_LEN 256
 static uint8_t rxBuf[RX_BUF_LEN];
 static volatile int rxBufHead = 0;
 static volatile int rxBufTail = 0;
+
+// Receive buffer for USB driver
+static uint8_t usbRxBuf[CDC_DATA_FS_OUT_PACKET_SIZE];
 
 static char formatBuf[128];
 
@@ -258,6 +261,46 @@ void USBSerialImpl::TransmissionCompleted()
     USBSerial.StartTransmit();
 }
 
+size_t USBSerialImpl::Available()
+{
+    int available = rxBufTail - rxBufHead;
+    if (available < 0)
+        available += RX_BUF_LEN;
+    return available;
+}
+
+size_t USBSerialImpl::Read(uint8_t* data, size_t len)
+{
+    size_t nread = 0;
+
+    while (len > 0) {
+        int head = rxBufHead;
+        int tail = rxBufTail;
+        size_t available;
+        if (tail < head) {
+            available = head - tail;
+        } else if (tail > head) {
+            available = RX_BUF_LEN - tail;
+        } else {
+            break; // no more data
+        }
+
+        if (available > len)
+            available = len;
+
+        memcpy(data, rxBuf + tail, available);
+        data += available;
+        len -= available;
+        tail += available;
+        nread += available;
+        if (tail >= RX_BUF_LEN)
+            tail = 0;
+        rxBufTail = tail;
+    }
+
+    return nread;
+}
+
 bool USBSerialImpl::IsTxIdle()
 {
     if (!IsConnected())
@@ -320,7 +363,7 @@ void USBSerialImpl::Reset()
 int8_t USBSerialImpl::CDCInit()
 {
     USBD_CDC_SetTxBuffer(&hUsbDevice, txBuf, 0);
-    USBD_CDC_SetRxBuffer(&hUsbDevice, rxBuf);
+    USBD_CDC_SetRxBuffer(&hUsbDevice, usbRxBuf);
     return USBD_OK;
 }
 
@@ -339,7 +382,35 @@ int8_t USBSerialImpl::CDCControl(uint8_t cmd, uint8_t* buf, uint16_t length)
 
 int8_t USBSerialImpl::CDCReceive(uint8_t* buf, uint32_t *len)
 {
-    USBD_CDC_SetRxBuffer(&hUsbDevice, &buf[0]);
+    // copy received data into circular buffer, possibly splitting it
+    int size = (int)*len;
+    while (size > 0) {
+        int head = rxBufHead;
+        int tail = rxBufTail;
+        int available;
+        if (head >= tail) {
+            available = RX_BUF_LEN - head;
+            if (tail == 0)
+                available--;
+        } else {
+            available = tail - head - 1;
+        }
+
+        if (available <= 0)
+            break; // buffer full; discard data
+
+        int s = size;
+        if (s > available)
+            s = available;
+        memcpy(rxBuf + head, buf, s);
+        buf += s;
+        size -= s;
+        head += s;
+        if (head >= RX_BUF_LEN)
+            head = 0;
+        rxBufHead = head;
+    }
+
     USBD_CDC_ReceivePacket(&hUsbDevice);
     return USBD_OK;
 }
