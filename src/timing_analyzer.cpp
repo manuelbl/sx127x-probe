@@ -147,13 +147,13 @@ void TimingAnalyzer::OnTimeoutInterrupt(uint32_t time)
     {
         stage = LoraStageBeforeRx2Window;
         rx1End = t;
-        PrintTimeoutAnalysis(rx1Start, rx1End);
+        PrintTimeoutAnalysis(rx1Start, rx1End, rx1Correction);
     }
     else
     {
         rx2End = t;
         result = LoraResultNoDownlink;
-        PrintTimeoutAnalysis(rx2Start, rx2End);
+        PrintTimeoutAnalysis(rx2Start, rx2End, rx2Correction);
         OnRxTxCompleted();
     }
 }
@@ -174,7 +174,7 @@ void TimingAnalyzer::PrintRxAnalysis(int32_t windowStartTime, int32_t windowEndT
     Serial.Printf("          Margin: start = %ldus\r\n", marginStart);
 }
 
-void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime)
+void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windowEndTime, RollingAvergage& buffer)
 {
     // Round to nearest second
     int32_t expectedStartTime = (windowStartTime + 500000) / 1000000 * 1000000;
@@ -195,9 +195,11 @@ void TimingAnalyzer::PrintTimeoutAnalysis(int32_t windowStartTime, int32_t windo
 
     int32_t optimumEndTime = expectedStartTime + (SymbolDuration(preambleLength) + timeoutLength) / 2;
     int32_t corr = windowEndTime - optimumEndTime;
+    buffer.AddValue(corr);
 
     Serial.Printf("          Margin: start = %ldus, end = %ldus\r\n", marginStart, marginEnd);
     Serial.Printf("          Correction for optimum RX window: %ldus\r\n", corr);
+    Serial.Printf("          Correction mean: %ldus variance %ld\r\n", buffer.Mean(), buffer.Variance());
 }
 
 
